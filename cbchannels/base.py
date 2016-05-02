@@ -6,7 +6,7 @@ from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
 function = type(lambda: None)  # function class, use at isinstance
 
 
-def consumer(name=None, decorator=None, **kwargs):
+def consumer(name=None, **kwargs):
     """
     Decorator to mark class method as consumer
     """
@@ -15,7 +15,7 @@ def consumer(name=None, decorator=None, **kwargs):
         return name
 
     def wrap(func):
-        func._consumer = {'name': name or func.__name__, 'filter': kwargs, 'decorator': decorator}
+        func._consumer = {'name': name or func.__name__, 'filter': kwargs}
         return func
     return wrap
 

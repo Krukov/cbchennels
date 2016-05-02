@@ -130,5 +130,6 @@ class MainTest(TestCase):
         _consumer, kwargs = routes.match(message)
         self.assertEqual(kwargs, {'tag': 'test'})
         self.assertTrue(_consumer(message, **kwargs)[0].decor)
+        self.assertTrue(_consumer(message, **kwargs)[0].decor2)
         self.assertEqual(_consumer(message, **kwargs)[1], {'tag': 'test'})
         self.assertEqual(_consumer(message, **kwargs)[2], 'new')
