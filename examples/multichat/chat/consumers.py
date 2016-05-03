@@ -1,9 +1,12 @@
 import json
 
+from django.utils.functional import cached_property
 from cbchannels import Consumers, consumer, apply_decorator
 from channels.auth import channel_session_user_from_http, channel_session_user
+
 from .models import Room
-from .utils import get_room_or_error, catch_client_error
+from .exceptions import ClientError
+from .utils import catch_client_error
 
 
 class ChatConsumers(Consumers):
@@ -30,28 +33,61 @@ class ChatConsumers(Consumers):
 
     @consumer(command="^join$")
     def chat_join(self, message):
-        room = get_room_or_error(message["room"], message.user)
-        room.websocket_group.add(message.reply_channel)
-        message.channel_session['rooms'] = list(set(message.channel_session['rooms']).union([room.id]))
+        self.group.add(message.reply_channel)
+        message.channel_session['rooms'] = list(set(message.channel_session['rooms']).union([self.room.id]))
         message.reply_channel.send({
             "text": json.dumps({
-                "join": str(room.id),
-                "title": room.title,
+                "join": str(self.room.id),
+                "title": self.room.title,
             }),
         })
 
     @consumer(command="^leave$")
     def chat_leave(self, message):
-        room = get_room_or_error(message["room"], message.user)
-        room.websocket_group.discard(message.reply_channel)
-        message.channel_session['rooms'] = list(set(message.channel_session['rooms']).difference([room.id]))
+        self.group.discard(message.reply_channel)
+        message.channel_session['rooms'] = list(set(message.channel_session['rooms']).difference([self.room.id]))
         message.reply_channel.send({
             "text": json.dumps({
-                "leave": str(room.id),
+                "leave": str(self.room.id),
             }),
         })
 
     @consumer(command="^send$")
     def chat_send(self, message):
-        room = get_room_or_error(message["room"], message.user)
-        room.send_message(message["message"], message.user)
+        self.send_message(message["message"])
+
+    @cached_property
+    def room(self):
+        """
+        Tries to fetch a room for the user, checking permissions along the way.
+        """
+        # Find the room they requested (by ID)
+        try:
+            room = Room.objects.get(pk=self.message["room"])
+        except Room.DoesNotExist:
+            raise ClientError("ROOM_INVALID")
+        # Check permissions
+        if room.staff_only and not self.message.user.is_staff:
+            raise ClientError("ROOM_ACCESS_DENIED")
+        return room
+
+    @property
+    def group(self):
+        """
+        Returns the Channels Group that sockets should subscribe to to get sent
+        messages as they are generated.
+        """
+        return self.room.websocket_group
+
+    def send_message(self, message):
+        """
+        Called to send a message to the room on behalf of a user.
+        """
+        # Send out the message to everyone in the room
+        self.group.send({
+            "text": json.dumps({
+                "room": str(self.room.id),
+                "message": message,
+                "username": self.message.user.username,
+            }),
+        })

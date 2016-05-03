@@ -1,5 +1,4 @@
 from .exceptions import ClientError
-from .models import Room
 
 
 def catch_client_error(func):
@@ -15,17 +14,3 @@ def catch_client_error(func):
             e.send_to(message.reply_channel)
     return inner
 
-
-def get_room_or_error(room_id, user):
-    """
-    Tries to fetch a room for the user, checking permissions along the way.
-    """
-    # Find the room they requested (by ID)
-    try:
-        room = Room.objects.get(pk=room_id)
-    except Room.DoesNotExist:
-        raise ClientError("ROOM_INVALID")
-    # Check permissions
-    if room.staff_only and not user.is_staff:
-        raise ClientError("ROOM_ACCESS_DENIED")
-    return room
