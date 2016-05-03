@@ -59,6 +59,7 @@ class Consumers(object):
         @wraps(func)
         def _consumer(message, *args, **kwargs):
             self.message = message
+            self.reply_channel = message.reply_channel
             self.kwargs = kwargs
             return func(message, *args, **kwargs)
 
@@ -125,7 +126,9 @@ class Consumers(object):
 
     def on_receive(self, message, **kwargs):
         if self.channel_name:
-            self.send(message.content)
+            content = copy(message.content)
+            content['reply_channel'] = message.reply_channel
+            self.send(content)
 
     def send(self, content):
         content = self.on_send(content)
