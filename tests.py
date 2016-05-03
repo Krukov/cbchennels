@@ -10,7 +10,7 @@ from asgiref.inmemory import ChannelLayer as ImMemoryChannelLayer
 
 class MainTest(TestCase):
 
-    def test_get_consumer(self):
+    def test_as_consumer(self):
         class Test(Consumers):
             @consumer(path='/hello')
             def test(this, message):
@@ -20,20 +20,12 @@ class MainTest(TestCase):
             def do(self, message):
                 return 'do'
 
-        self.assertTrue(Test().get('test'))
-        self.assertEqual(Test().get('test')('message'), 'message')
-        self.assertEqual(Test().get('test')._consumer['name'], 'test')
-
-        self.assertEqual(Test().get('do')('message'), 'do')
-        self.assertEqual(Test().get('do')._consumer['name'], 'do')
-
-    def test_as_consumer(self):
-        class Test(Consumers):
-            @consumer(path='/hello')
-            def test(this, message):
-                return message
-
+        self.assertTrue(Test.as_consumer('test'))
         self.assertEqual(Test.as_consumer('test')('message'), 'message')
+        self.assertEqual(Test.as_consumer('test')._consumer['name'], 'test')
+
+        self.assertEqual(Test.as_consumer('do')('message'), 'do')
+        self.assertEqual(Test.as_consumer('do')._consumer['name'], 'do')
 
     def test_as_routes(self):
 

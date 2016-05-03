@@ -1,6 +1,6 @@
 import six
 from copy import copy
-from functools import wraps, partial
+from functools import wraps
 from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
 
 function = type(lambda: None)  # function class, use at isinstance
@@ -24,7 +24,7 @@ def apply_decorator(decorator):
     def _decorator(func):
         @wraps(func)
         def _wrap(self, *args, **kwargs):
-            return decorator(self._wrap(partial(func, self)))(*args, **kwargs)
+            return decorator(self.__class__._wrap(func, self._init_kwargs))(*args, **kwargs)
         return _wrap
     return _decorator
 
@@ -43,12 +43,14 @@ class Consumers(object):
 
     def __init__(self, **kwargs):
         self.message = self.reply_channel = self.kwargs = None
+        self._init_kwargs = kwargs
         for key, value in six.iteritems(kwargs):
             if key in ['message', 'kwargs']:
                 raise ValueError('Do not use "{}" key word at Consumers create'.format(key))
             setattr(self, key, value)
 
-    def _wrap(self, func):
+    @classmethod
+    def _wrap(cls, func, init_kwargs):
         """
         Wrapper function for every consumer
         apply decorators and define self.message and self.kwargs
@@ -57,13 +59,14 @@ class Consumers(object):
             return func
 
         @wraps(func)
-        def _consumer(message, *args, **kwargs):
+        def _consumer(message, **kwargs):
+            self = cls(**init_kwargs)
             self.message = message
             self.reply_channel = getattr(message, 'reply_channel', None)
             self.kwargs = kwargs
-            return func(message, *args, **kwargs)
+            return func(self, message, **kwargs)
 
-        for decorator in self.get_decorators():
+        for decorator in cls.get_decorators():
             _consumer = decorator(_consumer)
 
         _consumer._wrapped = True
@@ -77,8 +80,7 @@ class Consumers(object):
         :param kwargs: key words arguments such as `channel_name` or `path`
         :return: func: consumer itself
         """
-        self = cls(**kwargs)
-        return self._wrap(self.get(name))
+        return cls._wrap(cls._get(name), kwargs)
 
     @classmethod
     def as_routes(cls, **kwargs):
@@ -91,7 +93,9 @@ class Consumers(object):
         ws_routes = [route(cls._base + '.' + name, cls.as_consumer(name, **kwargs)) for name in cls._base_consumers]
         receive_routes = []
         for _consumer in self:
-            r = route(self.get_channel_name(), cls(**kwargs)._wrap(_consumer), **_consumer._consumer['filter'])
+            r = route(self.get_channel_name(),
+                      cls.as_consumer(_consumer._consumer['name'], **kwargs),
+                      **_consumer._consumer['filter'])
             receive_routes.append(r)
         if receive_routes:
             return include([include(ws_routes, **self.get_filters()), include(receive_routes)])
@@ -103,20 +107,22 @@ class Consumers(object):
             filters['path'] = self.path
         return filters
 
-    def get_decorators(self):
-        return self.decorators[:]
+    @classmethod
+    def get_decorators(cls):
+        return cls.decorators[:]
 
-    def get(self, name):
-        if name in self._base_consumers:
-            return getattr(self, 'on_' + name)
-        for attr_name, attr in self.__class__.__dict__.items():
+    @classmethod
+    def _get(cls, name):
+        if name in cls._base_consumers:
+            return getattr(cls, 'on_' + name)
+        for attr_name, attr in cls.__dict__.items():
             if hasattr(attr, '_consumer') and attr._consumer['name'] == name:
-                return getattr(self, attr_name)
+                return attr
 
     def __iter__(self):
         for attr_name, attr in self.__class__.__dict__.items():
             if hasattr(attr, '_consumer'):
-                yield getattr(self, attr_name)
+                yield attr
 
     def on_connect(self, message, **kwargs):
         pass
