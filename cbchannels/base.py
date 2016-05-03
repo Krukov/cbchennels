@@ -38,9 +38,11 @@ class Consumers(object):
     channel_layer = None
     channel_alias = DEFAULT_CHANNEL_LAYER
     decorators = []
+    _base_consumers = ['connect', 'disconnect', 'receive']
+    _base = 'websocket'
 
     def __init__(self, **kwargs):
-        self.message = self.kwargs = None
+        self.message = self.reply_channel = self.kwargs = None
         for key, value in six.iteritems(kwargs):
             if key in ['message', 'kwargs']:
                 raise ValueError('Do not use "{}" key word at Consumers create'.format(key))
@@ -85,15 +87,10 @@ class Consumers(object):
         :return: key words arguments such as `channel_name` or `path`
         """
         self = cls(**kwargs)
-        _wrap = self._wrap
-        ws_routes = [
-            route("websocket.connect", _wrap(self.on_connect)),
-            route("websocket.receive", _wrap(self.on_receive)),
-            route("websocket.disconnect", _wrap(self.on_disconnect)),
-        ]
+        ws_routes = [route(cls._base + '.' + name, cls.as_consumer(name, **kwargs)) for name in cls._base_consumers]
         receive_routes = []
         for _consumer in self:
-            r = route(self.get_channel_name(), _wrap(_consumer), **_consumer._consumer['filter'])
+            r = route(self.get_channel_name(), cls(**kwargs)._wrap(_consumer), **_consumer._consumer['filter'])
             receive_routes.append(r)
         if receive_routes:
             return include([include(ws_routes, **self.get_filters()), include(receive_routes)])
@@ -109,6 +106,8 @@ class Consumers(object):
         return self.decorators[:]
 
     def get(self, name):
+        if name in self._base_consumers:
+            return getattr(self, 'on_' + name)
         for attr_name, attr in self.__class__.__dict__.items():
             if hasattr(attr, '_consumer') and attr._consumer['name'] == name:
                 return getattr(self, attr_name)

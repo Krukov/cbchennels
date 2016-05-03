@@ -43,10 +43,10 @@ class MainTest(TestCase):
                 return message
 
             @consumer
-            def do(self, message):
+            def do(this, message):
                 return 'do'
 
-            def on_connect(self, message):
+            def on_connect(this, message):
                 return 'connect'
 
         channel_layer = ImMemoryChannelLayer()
@@ -105,6 +105,7 @@ class MainTest(TestCase):
             path = '^/(?P<slug>[^/]+)'
             channel_name = 'test'
             decorators = [decor, ]
+            slug = 'slug'
 
             @apply_decorator(decor2)
             def on_connect(self, message, slug=None):
@@ -132,4 +133,4 @@ class MainTest(TestCase):
         self.assertTrue(_consumer(message, **kwargs)[0].decor)
         self.assertTrue(_consumer(message, **kwargs)[0].decor2)
         self.assertEqual(_consumer(message, **kwargs)[1], {'tag': 'test'})
-        self.assertEqual(_consumer(message, **kwargs)[2], 'new')
+        self.assertEqual(_consumer(message, **kwargs)[2], 'slug')
