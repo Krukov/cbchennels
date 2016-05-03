@@ -8,6 +8,8 @@ from .models import Room
 from .exceptions import ClientError
 from .utils import catch_client_error
 
+PK = '(?P<pk>\d+)'
+
 
 class ChatConsumers(Consumers):
     path = r"^/chat/stream"
@@ -31,8 +33,8 @@ class ChatConsumers(Consumers):
         payload['reply_channel'] = message.content['reply_channel']
         self.send(payload)
 
-    @consumer(command="^join$")
-    def chat_join(self, message):
+    @consumer(command="^join$", room=PK)
+    def chat_join(self, message, **kwargs):
         self.group.add(message.reply_channel)
         message.channel_session['rooms'] = list(set(message.channel_session['rooms']).union([self.room.id]))
         message.reply_channel.send({
@@ -42,8 +44,8 @@ class ChatConsumers(Consumers):
             }),
         })
 
-    @consumer(command="^leave$")
-    def chat_leave(self, message):
+    @consumer(command="^leave$", room=PK)
+    def chat_leave(self, message, **kwargs):
         self.group.discard(message.reply_channel)
         message.channel_session['rooms'] = list(set(message.channel_session['rooms']).difference([self.room.id]))
         message.reply_channel.send({
@@ -52,8 +54,8 @@ class ChatConsumers(Consumers):
             }),
         })
 
-    @consumer(command="^send$")
-    def chat_send(self, message):
+    @consumer(command="^send$", room=PK)
+    def chat_send(self, message, **kwargs):
         self.send_message(message["message"])
 
     @cached_property
@@ -63,7 +65,7 @@ class ChatConsumers(Consumers):
         """
         # Find the room they requested (by ID)
         try:
-            room = Room.objects.get(pk=self.message["room"])
+            room = Room.objects.get(pk=self.kwargs['pk'])
         except Room.DoesNotExist:
             raise ClientError("ROOM_INVALID")
         # Check permissions
