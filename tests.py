@@ -126,3 +126,33 @@ class MainTest(TestCase):
         self.assertTrue(_consumer(message, **kwargs)[0].decor2)
         self.assertEqual(_consumer(message, **kwargs)[1], {'tag': 'test'})
         self.assertEqual(_consumer(message, **kwargs)[2], 'slug')
+
+    def test_super_problem(self):
+        def decor(_consumer):
+            @wraps(_consumer)
+            def _wrap(message, *args, **kwargs):
+                message.decor = True
+                return _consumer(message, *args, **kwargs)
+
+            return _wrap
+
+        class A(Consumers):
+
+            @apply_decorator(decor)
+            def on_connect(self, message, **kwargs):
+                self.test_mark = 'yes'
+                print(id(self))
+
+        class B(A):
+            def on_connect(self, message, **kwargs):
+                print(id(self))
+                super(B, self).on_connect(message, **kwargs)
+                self.test_mark2 = 'yes2'
+                return self.test_mark
+
+        channel_layer = ImMemoryChannelLayer()
+
+        routes = B.as_routes(channel_layer=channel_layer)
+        message = Message({'path': '/new'}, 'websocket.connect', channel_layer)
+        _consumer, kwargs = routes.match(message)
+        self.assertTrue(_consumer(message, **kwargs), 'yes')

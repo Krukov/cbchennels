@@ -24,7 +24,7 @@ def apply_decorator(decorator):
     def _decorator(func):
         @wraps(func)
         def _wrap(self, *args, **kwargs):
-            return decorator(self.__class__._wrap(func, self._init_kwargs))(*args, **kwargs)
+            return decorator(self.__class__._wrap(func, this=self))(*args, **kwargs)
         return _wrap
     return _decorator
 
@@ -50,7 +50,7 @@ class Consumers(object):
             setattr(self, key, value)
 
     @classmethod
-    def _wrap(cls, func, init_kwargs):
+    def _wrap(cls, func, init_kwargs=None, this=None):
         """
         Wrapper function for every consumer
         apply decorators and define self.message and self.kwargs
@@ -60,7 +60,7 @@ class Consumers(object):
 
         @wraps(func)
         def _consumer(message, **kwargs):
-            self = cls(**init_kwargs)
+            self = this or cls(**init_kwargs)
             self.message = message
             self.reply_channel = getattr(message, 'reply_channel', None)
             self.kwargs = kwargs
