@@ -15,12 +15,12 @@ class GroupMixin(object):
     def on_connect(self, message, **kwargs):
         super(GroupMixin, self).on_connect(message, **kwargs)
         Group(self.get_group_name(), alias=self.channel_alias, channel_layer=self.channel_layer) \
-            .add(message.reply_channel)
+            .add(self.reply_channel)
 
     def on_disconnect(self, message, **kwargs):
         super(GroupMixin, self).on_disconnect(message, **kwargs)
         Group(self.get_group_name(), alias=self.channel_alias, channel_layer=self.channel_layer) \
-            .discard(message.reply_channel)
+            .discard(self.reply_channel)
 
     def on_receive(self, message, **kwargs):
         super(GroupMixin, self).on_receive(message, **kwargs)
