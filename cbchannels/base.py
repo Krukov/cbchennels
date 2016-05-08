@@ -3,19 +3,20 @@ from copy import copy
 from functools import wraps
 from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
 
-function = type(lambda: None)  # function class, use at isinstance
+_function = type(lambda: None)  # function class, use at isinstance
+_BASE_CONSUMERS = ['connect', 'disconnect', 'receive']
 
 
 def consumer(name=None, **kwargs):
     """
     Decorator to mark class method as consumer
     """
-    if isinstance(name, function) and not kwargs:
-        name._consumer = {'name': name.__name__, 'filter': {}}
+    if isinstance(name, _function) and not kwargs:
+        name._consumer = {'filter': {}}
         return name
 
     def wrap(func):
-        func._consumer = {'name': name or func.__name__, 'filter': kwargs}
+        func._consumer = {'filter': kwargs}
         return func
     return wrap
 
@@ -32,14 +33,11 @@ def apply_decorator(decorator):
 class Consumers(object):
     """Basic class for Class Base Consumers"""
     channel_name = None
-    channel_sub_name = ['receive', ]
     filters = None
     path = ''
-    channel_layer = None
-    channel_alias = DEFAULT_CHANNEL_LAYER
     decorators = []
-    _base_consumers = ['connect', 'disconnect', 'receive']
-    _base = 'websocket'
+    _channel_layer = None
+    _channel_alias = DEFAULT_CHANNEL_LAYER
 
     def __init__(self, **kwargs):
         self.message = self.reply_channel = self.kwargs = None
@@ -66,21 +64,27 @@ class Consumers(object):
             self.kwargs = kwargs
             return func(self, message, **kwargs)
 
-        for decorator in cls.get_decorators():
+        for decorator in cls.decorators:
             _consumer = decorator(_consumer)
 
         _consumer._wrapped = True
         return _consumer
 
-    @classmethod
-    def as_consumer(cls, name, **kwargs):
-        """
-        Create consumer with given name and given kwargs
-        :param name: name of consumer
-        :param kwargs: key words arguments such as `channel_name` or `path`
-        :return: func: consumer itself
-        """
-        return cls._wrap(cls._get(name), kwargs)
+    def __get_filters(self):
+        filters = copy(self.filters) or {}
+        if self.path:
+            filters['path'] = self.path
+        return filters
+
+    def __get_consumers(self):
+        for attr_name, attr in self.__class__.__dict__.items():
+            if hasattr(attr, '_consumer'):
+                yield attr
+
+    def __get_channel_name(self):
+        return '.'.join([self.channel_name, 'receive'])
+
+    # ROUTES API
 
     @classmethod
     def as_routes(cls, **kwargs):
@@ -90,39 +94,22 @@ class Consumers(object):
         :return: key words arguments such as `channel_name` or `path`
         """
         self = cls(**kwargs)
-        ws_routes = [route(cls._base + '.' + name, cls.as_consumer(name, **kwargs)) for name in cls._base_consumers]
+        ws_routes = [
+            route('websocket.connect', cls._wrap(cls.on_connect, kwargs)),
+            route('websocket.disconnect', cls._wrap(cls.on_disconnect, kwargs)),
+            route('websocket.receive', cls._wrap(cls.on_receive, kwargs)),
+        ]
         receive_routes = []
-        for _consumer in self:
-            r = route(self.get_channel_name(),
-                      cls.as_consumer(_consumer._consumer['name'], **kwargs),
+        for _consumer in self.__get_consumers():
+            r = route(self.__get_channel_name(),
+                      cls._wrap(_consumer, kwargs),
                       **_consumer._consumer['filter'])
             receive_routes.append(r)
         if receive_routes:
-            return include([include(ws_routes, **self.get_filters()), include(receive_routes)])
-        return include(ws_routes, **self.get_filters())
+            return include([include(ws_routes, **self.__get_filters()), include(receive_routes)])
+        return include(ws_routes, **self.__get_filters())
 
-    def get_filters(self):
-        filters = copy(self.filters) or {}
-        if self.path:
-            filters['path'] = self.path
-        return filters
-
-    @classmethod
-    def get_decorators(cls):
-        return cls.decorators[:]
-
-    @classmethod
-    def _get(cls, name):
-        if name in cls._base_consumers:
-            return getattr(cls, 'on_' + name)
-        for attr_name, attr in cls.__dict__.items():
-            if hasattr(attr, '_consumer') and attr._consumer['name'] == name:
-                return attr
-
-    def __iter__(self):
-        for attr_name, attr in self.__class__.__dict__.items():
-            if hasattr(attr, '_consumer'):
-                yield attr
+    # BASE CONSUMERS
 
     def on_connect(self, message, **kwargs):
         pass
@@ -138,19 +125,10 @@ class Consumers(object):
             self.send(content)
 
     def send(self, content):
-        content = self.on_send(content)
         self.channel.send(content)
-
-    def on_send(self, content):
-        return content
-
-    def get_channel_name(self):
-        name = [self.channel_name, ]
-        name.extend(self.channel_sub_name)
-        return '.'.join(name)
 
     @property
     def channel(self):
-        return Channel(self.get_channel_name(), alias=self.channel_alias, channel_layer=self.channel_layer)
+        return Channel(self.__get_channel_name(), alias=self._channel_alias, channel_layer=self._channel_layer)
 
 
