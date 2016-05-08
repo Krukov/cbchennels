@@ -10,23 +10,6 @@ from asgiref.inmemory import ChannelLayer as ImMemoryChannelLayer
 
 class MainTest(TestCase):
 
-    def test_as_consumer(self):
-        class Test(Consumers):
-            @consumer(path='/hello')
-            def test(this, message):
-                return message
-
-            @consumer
-            def do(self, message):
-                return 'do'
-
-        self.assertTrue(Test.as_consumer('test'))
-        self.assertEqual(Test.as_consumer('test')('message'), 'message')
-        self.assertEqual(Test.as_consumer('test')._consumer['name'], 'test')
-
-        self.assertEqual(Test.as_consumer('do')('message'), 'do')
-        self.assertEqual(Test.as_consumer('do')._consumer['name'], 'do')
-
     def test_as_routes(self):
 
         class Test(Consumers):
@@ -42,7 +25,7 @@ class MainTest(TestCase):
                 return 'connect'
 
         channel_layer = ImMemoryChannelLayer()
-        routes = Test.as_routes(channel_name='test', path='^new$', channel_layer=channel_layer)
+        routes = Test.as_routes(channel_name='test', path='^new$', _channel_layer=channel_layer)
         self.assertTrue(isinstance(routes, include))
         self.assertEqual(routes.channel_names(), {'websocket.receive', 'websocket.connect',
                                                   'test.receive', 'websocket.disconnect'})
@@ -61,11 +44,11 @@ class MainTest(TestCase):
         class Test(Consumers):
             path = '^new$'
 
-            def on_connect(self, message):
+            def on_connect(this, message):
                 return 'connect'
 
         channel_layer = ImMemoryChannelLayer()
-        routes = Test.as_routes(channel_layer=channel_layer)
+        routes = Test.as_routes(_channel_layer=channel_layer)
         self.assertTrue(isinstance(routes, include))
         self.assertEqual(routes.channel_names(), {'websocket.receive', 'websocket.connect', 'websocket.disconnect'})
         self.assertEqual(len(routes.routing), 3)
@@ -100,14 +83,14 @@ class MainTest(TestCase):
             slug = 'slug'
 
             @apply_decorator(decor2)
-            def on_connect(self, message, slug=None):
-                self.slug = slug
+            def on_connect(this, message, slug=None):
+                this.slug = slug
                 return message
 
             @consumer(tag='(?P<tag>[^/]+)')
             @apply_decorator(decor2)
-            def tags(self, message, tag):
-                return self.message, self.kwargs, self.slug
+            def tags(this, message, tag):
+                return this.message, this.kwargs, this.slug
 
         channel_layer = ImMemoryChannelLayer()
         routes = Test.as_routes(channel_layer=channel_layer)
@@ -139,16 +122,14 @@ class MainTest(TestCase):
         class A(Consumers):
 
             @apply_decorator(decor)
-            def on_connect(self, message, **kwargs):
-                self.test_mark = 'yes'
-                print(id(self))
+            def on_connect(this, message, **kwargs):
+                this.test_mark = 'yes'
 
         class B(A):
-            def on_connect(self, message, **kwargs):
-                print(id(self))
-                super(B, self).on_connect(message, **kwargs)
-                self.test_mark2 = 'yes2'
-                return self.test_mark
+            def on_connect(this, message, **kwargs):
+                super(B, this).on_connect(message, **kwargs)
+                this.test_mark2 = 'yes2'
+                return this.test_mark
 
         channel_layer = ImMemoryChannelLayer()
 
