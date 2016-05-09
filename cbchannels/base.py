@@ -4,7 +4,6 @@ from functools import wraps
 from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
 
 _function = type(lambda: None)  # function class, use at isinstance
-_BASE_CONSUMERS = ['connect', 'disconnect', 'receive']
 
 
 def consumer(name=None, **kwargs):
@@ -22,6 +21,7 @@ def consumer(name=None, **kwargs):
 
 
 def apply_decorator(decorator):
+    """Decorator for application decorator to consumers"""
     def _decorator(func):
         @wraps(func)
         def _wrap(self, *args, **kwargs):
@@ -33,7 +33,7 @@ def apply_decorator(decorator):
 class Consumers(object):
     """Basic class for Class Base Consumers"""
     channel_name = None
-    filters = None
+    filters = None  # filters for ws channels (external)
     path = ''
     decorators = []
     _channel_layer = None
@@ -71,17 +71,20 @@ class Consumers(object):
         return _consumer
 
     def __get_filters(self):
+        """Return filters for external channels"""
         filters = copy(self.filters) or {}
         if self.path:
             filters['path'] = self.path
         return filters
 
     def __get_consumers(self):
+        """Generator yield internal consumers"""
         for attr_name, attr in self.__class__.__dict__.items():
             if hasattr(attr, '_consumer'):
                 yield attr
 
     def __get_channel_name(self):
+        """Return internal channel name with 'receive suffix'"""
         return '.'.join([self.channel_name, 'receive'])
 
     # ROUTES API
@@ -94,30 +97,33 @@ class Consumers(object):
         :return: key words arguments such as `channel_name` or `path`
         """
         self = cls(**kwargs)
-        ws_routes = [
+        external_routes = [
             route('websocket.connect', cls._wrap(cls.on_connect, kwargs)),
             route('websocket.disconnect', cls._wrap(cls.on_disconnect, kwargs)),
             route('websocket.receive', cls._wrap(cls.on_receive, kwargs)),
         ]
-        receive_routes = []
+        internal_routes = []
         for _consumer in self.__get_consumers():
             r = route(self.__get_channel_name(),
                       cls._wrap(_consumer, kwargs),
                       **_consumer._consumer['filter'])
-            receive_routes.append(r)
-        if receive_routes:
-            return include([include(ws_routes, **self.__get_filters()), include(receive_routes)])
-        return include(ws_routes, **self.__get_filters())
+            internal_routes.append(r)
+        if internal_routes:
+            return include([include(external_routes, **self.__get_filters()), include(internal_routes)])
+        return include(external_routes, **self.__get_filters())
 
     # BASE CONSUMERS
 
     def on_connect(self, message, **kwargs):
+        """Consumer for connection at external channel"""
         pass
 
     def on_disconnect(self, message, **kwargs):
+        """Consumer for disconnection at external channel"""
         pass
 
     def on_receive(self, message, **kwargs):
+        """Consumer for receive at external channel"""
         if self.channel_name:
             content = copy(message.content)
             if self.reply_channel:
@@ -125,10 +131,12 @@ class Consumers(object):
             self.send(content)
 
     def send(self, content):
+        """Send content to internal channel"""
         self.channel.send(content)
 
     @property
     def channel(self):
+        """Return internal channel"""
         return Channel(self.__get_channel_name(), alias=self._channel_alias, channel_layer=self._channel_layer)
 
 

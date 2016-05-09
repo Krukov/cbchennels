@@ -30,11 +30,3 @@ class GroupMixin(object):
 class GroupConsumers(GroupMixin, Consumers):
     pass
 
-
-class ModelMixin(object):
-    model = None
-    queryset = None
-    serializer = None
-
-    def get_queryset(self):
-        return self.queryset or self.model.objects.all()
