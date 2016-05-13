@@ -1,11 +1,11 @@
 from functools import wraps
 from unittest import TestCase
 
-from cbchannels import Consumers, consumer, apply_decorator
-
 from channels import include
 from channels.message import Message
 from asgiref.inmemory import ChannelLayer as ImMemoryChannelLayer
+
+from cbchannels import Consumers, consumer, apply_decorator
 
 
 class MainTest(TestCase):
@@ -114,7 +114,8 @@ class MainTest(TestCase):
         def decor(_consumer):
             @wraps(_consumer)
             def _wrap(message, *args, **kwargs):
-                message.decor = True
+                message.test_mark = '1'
+                message.test_mark_decor = '1'
                 return _consumer(message, *args, **kwargs)
 
             return _wrap
@@ -123,17 +124,23 @@ class MainTest(TestCase):
 
             @apply_decorator(decor)
             def on_connect(this, message, **kwargs):
-                this.test_mark = 'yes'
+                this.test_mark = '2'
+                this.test_mark_a = '2'
 
         class B(A):
             def on_connect(this, message, **kwargs):
                 super(B, this).on_connect(message, **kwargs)
-                this.test_mark2 = 'yes2'
-                return this.test_mark
+                this.test_mark = '3'
+                this.test_mark_b = '3'
+                return this
 
         channel_layer = ImMemoryChannelLayer()
 
         routes = B.as_routes(channel_layer=channel_layer)
         message = Message({'path': '/new'}, 'websocket.connect', channel_layer)
         _consumer, kwargs = routes.match(message)
-        self.assertTrue(_consumer(message, **kwargs), 'yes')
+        res = _consumer(message, **kwargs)
+        self.assertTrue(res.test_mark, '3')
+        self.assertTrue(res.message.test_mark_decor, '1')
+        self.assertTrue(res.test_mark_a, '2')
+        self.assertTrue(res.test_mark_b, '3')
