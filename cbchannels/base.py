@@ -64,7 +64,7 @@ class Consumers(object):
             self.kwargs = kwargs
             return func(self, message, **kwargs)
 
-        for decorator in cls.decorators:
+        for decorator in cls.get_decorators():
             _consumer = decorator(_consumer)
 
         _consumer._wrapped = True
@@ -128,6 +128,8 @@ class Consumers(object):
             content = copy(message.content)
             if self.reply_channel:
                 content['reply_channel'] = message.reply_channel
+            if isinstance(content.get('reply_channel', None), Channel):
+                content['reply_channel'] = content['reply_channel'].name
             self.send(content)
 
     def send(self, content):
@@ -139,4 +141,6 @@ class Consumers(object):
         """Return internal channel"""
         return Channel(self.__get_channel_name(), alias=self._channel_alias, channel_layer=self._channel_layer)
 
-
+    @classmethod
+    def get_decorators(cls):
+        return cls.decorators[:]
