@@ -1,7 +1,11 @@
 import six
 from copy import copy
 from functools import wraps
-from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
+
+try:
+    from django.channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
+except ImportError:
+    from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
 
 _function = type(lambda: None)  # function class, use at isinstance
 

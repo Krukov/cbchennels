@@ -1,11 +1,16 @@
 
 from contextlib import contextmanager
 
-from channels.tests import ChannelTestCase
-from channels import routing, asgi, DEFAULT_CHANNEL_LAYER, Channel
+try:
+    from django.channels import routing, asgi, DEFAULT_CHANNEL_LAYER, Channel
+    from django.channels.tests import ChannelTestCase
+except ImportError:
+    from channels import routing, asgi, DEFAULT_CHANNEL_LAYER, Channel
+    from channels.tests import ChannelTestCase
+
 from django.contrib.auth.models import AnonymousUser
 
-from cbchannels import Consumers, consumer, apply_decorator
+from cbchannels import Consumers, consumer
 from cbchannels.generic import GroupMixin, UserMixin
 
 

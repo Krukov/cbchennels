@@ -2,4 +2,7 @@
 Class based channels
 ====================
 
-Example: see examples directory
+Work in progress
+
+
+

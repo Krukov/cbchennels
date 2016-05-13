@@ -1,6 +1,13 @@
-from channels import Group
-from channels.sessions import channel_session, http_session
-from channels.auth import channel_session_user_from_http, channel_session_user
+
+try:
+    from django.channels import Group
+    from django.channels.sessions import channel_session, http_session
+    from django.channels.auth import channel_session_user_from_http, channel_session_user
+except ImportError:
+    from channels import Group
+    from channels.sessions import channel_session, http_session
+    from channels.auth import channel_session_user_from_http, channel_session_user
+
 from .base import apply_decorator, consumer
 
 

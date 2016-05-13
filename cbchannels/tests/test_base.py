@@ -1,8 +1,13 @@
 from functools import wraps
 from unittest import TestCase
 
-from channels import include
-from channels.message import Message
+try:
+    from django.channels import include
+    from django.channels.message import Message
+except ImportError:
+    from channels import include
+    from channels.message import Message
+
 from asgiref.inmemory import ChannelLayer as ImMemoryChannelLayer
 
 from cbchannels import Consumers, consumer, apply_decorator
