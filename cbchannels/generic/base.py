@@ -8,7 +8,7 @@ except ImportError:
     from channels.sessions import channel_session, http_session
     from channels.auth import channel_session_user_from_http, channel_session_user
 
-from .base import apply_decorator, consumer
+from ..base import apply_decorator, consumer
 
 
 class GroupMixin(object):
@@ -31,6 +31,8 @@ class GroupMixin(object):
 
     def broadcast(self, content):
         self.get_group().send(content)
+
+
 
     def on_connect(self, message, **kwargs):
         super(GroupMixin, self).on_connect(message, **kwargs)
