@@ -87,7 +87,7 @@ class Consumers(object):
             if hasattr(attr, '_consumer'):
                 yield attr
 
-    def __get_channel_name(self):
+    def _get_channel_name(self):
         """Return internal channel name with 'receive suffix'"""
         return '.'.join([self.channel_name, 'receive'])
 
@@ -108,7 +108,7 @@ class Consumers(object):
         ]
         internal_routes = []
         for _consumer in self.__get_consumers():
-            r = route(self.__get_channel_name(),
+            r = route(self._get_channel_name(),
                       cls._wrap(_consumer, kwargs),
                       **_consumer._consumer['filter'])
             internal_routes.append(r)
@@ -143,7 +143,7 @@ class Consumers(object):
     @property
     def channel(self):
         """Return internal channel"""
-        return Channel(self.__get_channel_name(), alias=self._channel_alias, channel_layer=self._channel_layer)
+        return Channel(self._get_channel_name(), alias=self._channel_alias, channel_layer=self._channel_layer)
 
     @classmethod
     def get_decorators(cls):
