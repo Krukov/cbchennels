@@ -60,7 +60,7 @@ class SessionMixin(object):
 
     @property
     def session(self):
-        return self.message.session
+        return self.message.channel_session
 
     @property
     def http_session(self):
@@ -103,20 +103,24 @@ class PermissionMixin(object):
 class RoomMixin(SessionMixin):
     channel_name = '_room'
 
-    @consumer(command="^join$", room=r'(?P<room>\w+)')
-    def join(self, message, room):
-        self.session['rooms'].add(room)
+    @property
+    def room(self):
+        return self.message.get('room')
 
-    @consumer(command="^leave$", room=r'(?P<room>\w+)')
-    def leave(self, message, room):
-        self.session['rooms'].remove(room)
+    @consumer(command="^join$")
+    def join(self, message):
+        self.session['rooms'].add(self.room)
 
-    @consumer(command="^send$", room=r'(?P<room>\w+)')
-    def send(self, message, room):
-        if room in self.session:
-            self.get_room_group(room).send(self.message['message'])
+    @consumer(command="^leave$")
+    def leave(self, message):
+        self.session['rooms'].remove(self.room)
 
-    def get_room_group(self, room):
-        return Group(room, alias=self._channel_alias, channel_layer=self._channel_layer)
+    @consumer(command="^send$")
+    def send(self, message):
+        if self.room in self.session:
+            self.room_group(self.room).send(self.message['message'])
 
+    @property
+    def room_group(self):
+        return Group(self.room, alias=self._channel_alias, channel_layer=self._channel_layer)
 
