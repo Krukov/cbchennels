@@ -2,25 +2,14 @@
 try:
     from django.channels import Group
     from django.channels.sessions import channel_session, http_session
-    from django.channels.auth import channel_session_user_from_http, channel_session_user
 except ImportError:
     from channels import Group
     from channels.sessions import channel_session, http_session
-    from channels.auth import channel_session_user_from_http, channel_session_user
 
-from ..base import apply_decorator, consumer
+from ..base import consumer, Consumers
 
 
 class GroupMixin(object):
-    """
-    Add reply_channel to the Group at connect and broadcast at receive
-
-    Usage:
-
-    class MyGroupConsumers(GroupConsumers):
-        path = '(?P<id>\d+)'
-        group_name = 'test_{id}'
-    """
     group_name = None
 
     def get_group_name(self, **kwargs):
@@ -33,6 +22,16 @@ class GroupMixin(object):
         self.get_group().send(content)
 
 
+class GroupConsumers(GroupMixin, Consumers):
+    """
+        Add reply_channel to the Group at connect and broadcast at receive
+
+        Usage:
+
+        class MyGroupConsumers(GroupConsumers):
+            path = '(?P<id>\d+)'
+            group_name = 'test_{id}'
+        """
 
     def on_connect(self, message, **kwargs):
         super(GroupMixin, self).on_connect(message, **kwargs)
@@ -69,25 +68,6 @@ class SessionMixin(object):
         return self.message.http_session
 
 
-class UserMixin(object):
-
-    @classmethod
-    def get_decorators(cls):
-        decorators = super(UserMixin, cls).get_decorators()
-        decorators.append(channel_session_user)
-        if channel_session in decorators:
-            decorators.remove(channel_session)  # channel_session_user already include channel_session decorator
-        return decorators
-
-    @apply_decorator(channel_session_user_from_http)
-    def on_connect(self, *args, **kwargs):
-        return super(UserMixin, self).on_connect(*args, **kwargs)
-
-    @property
-    def user(self):
-        return self.message.user
-
-
 class PermissionMixin(object):
     permissions = []
 
@@ -102,7 +82,7 @@ class PermissionMixin(object):
             super(PermissionMixin, self).on_receive(*args, **kwargs)
 
 
-class RoomMixin(SessionMixin):
+class RoomConsumers(SessionMixin):
     channel_name = '_room'
 
     @property

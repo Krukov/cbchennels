@@ -8,11 +8,11 @@ except ImportError:
     # remove it soon
     from .features import apply_routes, HttpClient
 
-
 from django.contrib.auth.models import AnonymousUser, User
 
 from cbchannels import Consumers, consumer
-from cbchannels.generic import GroupMixin, UserMixin
+from cbchannels.generic.base import GroupConsumers
+from cbchannels.generic.auth import UserMixin
 
 
 class TestGeneric(ChannelTestCase):
@@ -20,7 +20,7 @@ class TestGeneric(ChannelTestCase):
 
     def test_group_consumers(self):
 
-        class _GroupConsumers(GroupMixin, Consumers):
+        class _GroupConsumers(GroupConsumers):
             channel_name = 'test'
             path = '/test'
 
@@ -34,7 +34,7 @@ class TestGeneric(ChannelTestCase):
         self.assertTrue('test.reply_channel' in channel_layer._groups['test'].keys())
 
     def test_group_consumers_with_kwargs_in_path(self):
-        class _GroupConsumers(GroupMixin, Consumers):
+        class _GroupConsumers(GroupConsumers):
             path = '/test/(?P<test>\d+)'
             group_name = 'test_{test}'
 
