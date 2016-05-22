@@ -7,16 +7,18 @@ try:
 except ImportError:
     from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
 
+from .exceptions import ConsumerError
+
 _function = type(lambda: None)  # function class, use at isinstance
 
 
-def consumer(name=None, **kwargs):
+def consumer(_func=None, **kwargs):
     """
     Decorator to mark class method as consumer
     """
-    if isinstance(name, _function) and not kwargs:
-        name._consumer = {'filter': {}}
-        return name
+    if isinstance(_func, _function) and not kwargs:
+        _func._consumer = {'filter': {}}
+        return _func
 
     def wrap(func):
         func._consumer = {'filter': kwargs}
@@ -47,7 +49,7 @@ class Consumers(object):
         self.message = self.reply_channel = self.kwargs = None
         self._init_kwargs = kwargs
         for key, value in six.iteritems(kwargs):
-            if key in ['message', 'kwargs']:
+            if key in ['message', 'kwargs', 'reply_channel']:
                 raise ValueError('Do not use "{}" key word at Consumers create'.format(key))
             setattr(self, key, value)
 
@@ -55,7 +57,7 @@ class Consumers(object):
     def _wrap(cls, func, init_kwargs=None, this=None):
         """
         Wrapper function for every consumer
-        apply decorators and define self.message and self.kwargs
+        apply decorators and define message, kwargs and reply_channel
         """
         if getattr(func, '_wrapped', None):
             return func
@@ -66,7 +68,10 @@ class Consumers(object):
             self.message = message
             self.reply_channel = getattr(message, 'reply_channel', None)
             self.kwargs = kwargs
-            return func(self, message, **kwargs)
+            try:
+                return func(self, message, **kwargs)
+            except ConsumerError as e:
+                self.send({'error': str(e)})
 
         for decorator in cls.get_decorators():
             _consumer = decorator(_consumer)
@@ -74,16 +79,17 @@ class Consumers(object):
         _consumer._wrapped = True
         return _consumer
 
-    def __get_filters(self):
+    def _get_filters(self):
         """Return filters for external channels"""
         filters = copy(self.filters) or {}
         if self.path:
             filters['path'] = self.path
         return filters
 
-    def __get_consumers(self):
+    @classmethod
+    def _get_consumers(cls):
         """Generator yield internal consumers"""
-        for attr_name, attr in self.__class__.__dict__.items():
+        for attr_name, attr in cls.__dict__.items():
             if hasattr(attr, '_consumer'):
                 yield attr
 
@@ -107,14 +113,14 @@ class Consumers(object):
             route('websocket.receive', cls._wrap(cls.on_receive, kwargs)),
         ]
         internal_routes = []
-        for _consumer in self.__get_consumers():
+        for _consumer in cls._get_consumers():
             r = route(self._get_channel_name(),
                       cls._wrap(_consumer, kwargs),
                       **_consumer._consumer['filter'])
             internal_routes.append(r)
         if internal_routes:
-            return include([include(external_routes, **self.__get_filters()), include(internal_routes)])
-        return include(external_routes, **self.__get_filters())
+            return include([include(external_routes, **self._get_filters()), include(internal_routes)])
+        return include(external_routes, **self._get_filters())
 
     # BASE CONSUMERS
 
@@ -134,6 +140,8 @@ class Consumers(object):
                 content['reply_channel'] = message.reply_channel
             if isinstance(content.get('reply_channel', None), Channel):
                 content['reply_channel'] = content['reply_channel'].name
+            if self.kwargs:
+                content['_kwargs'] = self.kwargs
             self.send(content)
 
     def send(self, content):
