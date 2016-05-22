@@ -55,8 +55,7 @@ class SessionMixin(object):
     def get_decorators(cls):
         decorators = super(SessionMixin, cls).get_decorators()
         decorators.append(http_session)
-        if channel_session_user not in decorators:
-            decorators.append(channel_session)
+        decorators.append(channel_session)
         return decorators
 
     @property
@@ -100,7 +99,7 @@ class RoomConsumers(SessionMixin):
     @consumer(command="^send$")
     def send(self, message):
         if self.room in self.session:
-            self.room_group(self.room).send(self.message['message'])
+            self.room_group.send(self.message['message'])
 
     @property
     def room_group(self):
