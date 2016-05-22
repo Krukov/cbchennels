@@ -1,8 +1,8 @@
 from django.conf.urls import url
 from django.contrib import admin
 from django.contrib.auth.views import login, logout
-from chat.views import index
 
+from chat.views import index
 
 urlpatterns = [
     url(r'^$', index),
