@@ -110,11 +110,15 @@ class HttpClient(object):
             return
         return Message(content, recv_channel, channel_layers[self.alias])
 
-    def consume(self, channel):
+    def consume(self, channel, fail_on_none=True):
         message = self.get_next_message(channel)
         if message:
-            consumer, kwargs = self.channel_layer.router.match(message)
-            return consumer(message, **kwargs)
+            match = self.channel_layer.router.match(message)
+            if match:
+                consumer, kwargs = match
+                return consumer(message, **kwargs)
+        if fail_on_none:
+            raise ValueError('No message or consumer for message')
 
     def send_and_consume(self, channel, content={}):
         self.send(channel, content)
