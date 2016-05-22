@@ -25,8 +25,8 @@ class TestGeneric(ChannelTestCase):
             path = '/test'
 
         with apply_routes([_GroupConsumers.as_routes()]):
-            self.client.send_and_consume('websocket.connect', {'path': '/test', 'reply_channel': 'test.reply_channel'})
-            self.client.send_and_consume('websocket.receive',
+            self.client.send_and_consume(u'websocket.connect', {'path': '/test', 'reply_channel': 'test.reply_channel'})
+            self.client.send_and_consume(u'websocket.receive',
                                          {'message': 'test', 'path': '/test', 'reply_channel': 'test.reply_channel'})
 
         channel_layer = asgi.channel_layers[DEFAULT_CHANNEL_LAYER]
@@ -39,9 +39,9 @@ class TestGeneric(ChannelTestCase):
             group_name = 'test_{test}'
 
         with apply_routes([_GroupConsumers.as_routes()]):
-            self.client.send_and_consume('websocket.connect',
+            self.client.send_and_consume(u'websocket.connect',
                                          {'path': '/test/123', 'reply_channel': 'test.reply_channel'})
-            self.client.send_and_consume('websocket.receive',
+            self.client.send_and_consume(u'websocket.receive',
                                          {'message': 'test', 'path': '/test/123', 'reply_channel': 'test.reply_channel'})
 
         channel_layer = asgi.channel_layers[DEFAULT_CHANNEL_LAYER]
@@ -61,15 +61,15 @@ class TestGeneric(ChannelTestCase):
                 return self.user
 
         with apply_routes([_Consumers.as_routes(), ]):
-            self.client.send_and_consume('websocket.connect', {'path': '/test/123'})
-            self.client.send_and_consume('websocket.receive', {'message': 'test', 'path': '/test/123'})
-            user = self.client.consume('test.receive')
+            self.client.send_and_consume(u'websocket.connect', {'path': '/test/123'})
+            self.client.send_and_consume(u'websocket.receive', {'message': 'test', 'path': '/test/123'})
+            user = self.client.consume(u'test.receive')
             self.assertTrue(isinstance(user, AnonymousUser))
-            self.client.send_and_consume('websocket.disconnect', {'path': '/test/123'})
+            self.client.send_and_consume(u'websocket.disconnect', {'path': '/test/123'})
 
             self.client.login(username='test', password='123')
-            self.client.send_and_consume('websocket.connect', {'path': '/test/123'})
-            self.client.send_and_consume('websocket.receive', {'message': 'test', 'path': '/test/123'})
-            user = self.client.consume('test.receive')
+            self.client.send_and_consume(u'websocket.connect', {'path': '/test/123'})
+            self.client.send_and_consume(u'websocket.receive', {'message': 'test', 'path': '/test/123'})
+            user = self.client.consume(u'test.receive')
             self.assertTrue(isinstance(user, User))
             self.assertDictEqual(self.client.receive(), {'test': 123})

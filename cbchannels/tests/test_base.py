@@ -164,9 +164,9 @@ class MainTest(TestCase):
 
         with apply_routes([Test.as_routes()]):
             client = HttpClient()
-            client.send_and_consume('websocket.connect', content={'path': '/name/123/'})
-            client.send_and_consume('websocket.receive', content={'path': '/name/123', 'tag': 'tag'})
-            client.consume('test.receive')
+            client.send_and_consume(u'websocket.connect', content={'path': '/name/123/'})
+            client.send_and_consume(u'websocket.receive', content={'path': '/name/123', 'tag': 'tag'})
+            client.consume(u'test.receive')
             content = client.receive()
 
             self.assertDictEqual(content, {'test': 'tag', 'slug': None, 'kwargs': 'name'})
