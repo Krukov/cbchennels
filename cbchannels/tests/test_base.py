@@ -11,6 +11,7 @@ except ImportError:
 from asgiref.inmemory import ChannelLayer as ImMemoryChannelLayer
 
 from cbchannels import Consumers, consumer, apply_decorator
+from .features import apply_routes, HttpClient
 
 
 class MainTest(TestCase):
@@ -149,3 +150,23 @@ class MainTest(TestCase):
         self.assertTrue(res.message.test_mark_decor, '1')
         self.assertTrue(res.test_mark_a, '2')
         self.assertTrue(res.test_mark_b, '3')
+
+    def test_passing_kwargs_and_reply_channel(self):
+
+        class Test(Consumers):
+            path = '^/(?P<slug>[^/]+)/(?P<pk>\d+)/?'
+            channel_name = 'test'
+
+            @consumer(tag='(?P<test>[^/]+)')
+            def test(this, message, test):
+                this.reply_channel.send({'test': test, 'kwargs': message.content['_kwargs']['slug'],
+                                         'slug': this.kwargs.get('slug', None)})
+
+        with apply_routes([Test.as_routes(),]):
+            client = HttpClient()
+            client.send_and_consume('websocket.connect', content={'path': '/name/123/'})
+            client.send_and_consume('websocket.receive', content={'path': '/name/123', 'tag': 'tag'})
+            client.consume('test.receive')
+            content = client.receive()
+
+            self.assertDictEqual(content, {'test': 'tag', 'slug': None, 'kwargs': 'name'})
