@@ -31,7 +31,8 @@ def apply_decorator(decorator):
     def _decorator(func):
         @wraps(func)
         def _wrap(self, *args, **kwargs):
-            return decorator(self.__class__._wrap(func, this=self))(*args, **kwargs)
+            return decorator(self.__class__._wrap(func,
+                                                  this=self))(*args, **kwargs)
         return _wrap
     return _decorator
 
@@ -50,7 +51,8 @@ class Consumers(object):
         self._init_kwargs = kwargs
         for key, value in six.iteritems(kwargs):
             if key in ['message', 'kwargs', 'reply_channel']:
-                raise ValueError('Do not use "{}" key word at Consumers create'.format(key))
+                raise ValueError('Do not use "{}" key word at '
+                                 'Consumers create'.format(key))
             setattr(self, key, value)
 
     @classmethod

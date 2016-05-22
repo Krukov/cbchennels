@@ -6,9 +6,9 @@ setup(
     name='cbchannels',
     version=get_version(),
     packages=['cbchannels'],
-    
     url='https://github.com/Krukov/cbchannels',
-    download_url='https://github.com/Krukov/cbchannels/tarball/' + get_version(),
+    download_url='https://github.com/Krukov/cbchannels/'
+                 'tarball/' + get_version(),
     license='MIT',
     author='Dmitry Krukov',
     author_email='glebov.ru@gmail.com',

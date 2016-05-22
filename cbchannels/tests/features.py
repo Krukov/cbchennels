@@ -17,7 +17,8 @@ from channels.sessions import session_for_reply_channel
 class HttpClient(object):
 
     def __init__(self, alias=DEFAULT_CHANNEL_LAYER):
-        self.reply_channel = alias + ''.join([random.choice(string.ascii_letters) for _ in range(5)])
+        self.reply_channel = alias + ''.join(
+            [random.choice(string.ascii_letters) for _ in range(5)])
         self.alias = alias
         self._session = None
         self._headers = {}
@@ -52,7 +53,6 @@ class HttpClient(object):
 
     @property
     def session(self):
-        """Session as Lazy property: check that django.contrib.sessions is installed"""
         if not apps.is_installed('django.contrib.sessions'):
             raise EnvironmentError('Add django.contrib.sessions to the INSTALLED_APPS to use session')
         if not self._session:

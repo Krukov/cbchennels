@@ -162,7 +162,7 @@ class MainTest(TestCase):
                 this.reply_channel.send({'test': test, 'kwargs': message.content['_kwargs']['slug'],
                                          'slug': this.kwargs.get('slug', None)})
 
-        with apply_routes([Test.as_routes(),]):
+        with apply_routes([Test.as_routes()]):
             client = HttpClient()
             client.send_and_consume('websocket.connect', content={'path': '/name/123/'})
             client.send_and_consume('websocket.receive', content={'path': '/name/123', 'tag': 'tag'})

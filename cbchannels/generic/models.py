@@ -6,12 +6,8 @@ from django.utils.translation import ugettext as _
 
 try:
     from django.channels import Group
-    from django.channels.sessions import channel_session, http_session
-    from django.channels.auth import channel_session_user_from_http, channel_session_user
 except ImportError:
     from channels import Group
-    from channels.sessions import channel_session, http_session
-    from channels.auth import channel_session_user_from_http, channel_session_user
 
 from ..base import Consumers
 from ..exceptions import ConsumerError
@@ -64,7 +60,6 @@ class ObjectSubscribeConsumers(GroupMixin, SingleObjectMixin, Consumers):
 
     @classmethod
     def as_routes(cls, **kwargs):
-
         receiver(post_save, sender=cls.model or cls.queryset.model)(cls._post_save)
         return super(ObjectSubscribeConsumers, cls).as_routes(**kwargs)
 

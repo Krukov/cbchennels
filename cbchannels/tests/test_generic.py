@@ -44,7 +44,6 @@ class TestGeneric(ChannelTestCase):
             self.client.send_and_consume('websocket.receive',
                                          {'message': 'test', 'path': '/test/123', 'reply_channel': 'test.reply_channel'})
 
-
         channel_layer = asgi.channel_layers[DEFAULT_CHANNEL_LAYER]
         self.assertTrue('test_123' in channel_layer._groups.keys())
         self.assertTrue('test.reply_channel' in channel_layer._groups['test_123'].keys())

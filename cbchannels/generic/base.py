@@ -104,4 +104,3 @@ class RoomConsumers(SessionMixin):
     @property
     def room_group(self):
         return Group(self.room, alias=self._channel_alias, channel_layer=self._channel_layer)
-
