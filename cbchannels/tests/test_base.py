@@ -40,7 +40,8 @@ class MainTest(TestCase):
         self.assertEqual(len(routes.routing[1].routing), 2)
 
         self.assertEqual(routes.match(Message({'new': ''}, 'websocket.receive', channel_layer)), None)
-        self.assertEqual(routes.match(Message({'path': 'new'}, 'websocket.connect', channel_layer))[0](''), 'connect')
+        m = Message({'path': 'new'}, 'websocket.connect', channel_layer)
+        self.assertEqual(routes.match(m)[0](m), 'connect')
 
         message = Message({'path': 'new', 'tag': 'test'}, 'websocket.receive', channel_layer)
         routes.match(message)[0](message)
@@ -60,7 +61,8 @@ class MainTest(TestCase):
         self.assertEqual(len(routes.routing), 3)
 
         self.assertEqual(routes.match(Message({'new': ''}, 'websocket.receive', channel_layer)), None)
-        self.assertEqual(routes.match(Message({'path': 'new'}, 'websocket.connect', channel_layer))[0](''), 'connect')
+        m = Message({'path': 'new'}, 'websocket.connect', channel_layer)
+        self.assertEqual(routes.match(m)[0](m), 'connect')
 
         message = Message({'path': 'new', 'tag': 'test'}, 'websocket.receive', channel_layer)
 
@@ -169,4 +171,4 @@ class MainTest(TestCase):
             client.consume(u'test.receive')
             content = client.receive()
 
-            self.assertDictEqual(content, {'test': 'tag', 'slug': None, 'kwargs': 'name'})
+            self.assertDictEqual(content, {'test': 'tag', 'slug': 'name', 'kwargs': 'name'})
