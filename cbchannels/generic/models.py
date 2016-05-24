@@ -245,4 +245,3 @@ class DeleteMixin(SingleObjectMixin):
     def delete(self, message):
         self.instance.delete()
         self.reply_channel.send({'response': 'ok'})
-

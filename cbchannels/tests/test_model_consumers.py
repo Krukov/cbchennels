@@ -10,9 +10,7 @@ except ImportError:
 
 from django.contrib.auth.models import User
 
-from cbchannels import Consumers
-from cbchannels.generic.models import (ObjectSubscribeConsumers, ModelSubscribeConsumers, SimpleSerializer,
-                                       GetMixin, CreateMixin, UpdateMixin, DeleteMixin)
+from cbchannels.generic.models import ObjectSubscribeConsumers, SimpleSerializer
 
 
 class ModelsTestCase(ChannelTestCase):
@@ -71,7 +69,7 @@ class ModelsTestCase(ChannelTestCase):
         client = HttpClient()
         with apply_routes([routes]):
             # subscribe for object changes
-            client.send_and_consume('websocket.connect', content={'path': '/{}'.format(sub_object.pk)})
+            client.send_and_consume(u'websocket.connect', content={'path': '/{}'.format(sub_object.pk)})
 
             # change sub object
             sub_object.username = 'sub_object'
@@ -112,10 +110,10 @@ class ModelsTestCase(ChannelTestCase):
         client = HttpClient()
         with apply_routes([routes]):
             # subscribe for object changes
-            client.send_and_consume('websocket.connect', content={'path': '/{}'.format('1')})
+            client.send_and_consume(u'websocket.connect', content={'path': '/{}'.format('1')})
 
             # create object for subscribe
-            sub_object = User.objects.create_user(username='test', email='t@t.tt')
+            User.objects.create_user(username='test', email='t@t.tt')
             rev = client.receive()
             res = json.loads(rev['created'])
             self.assertEqual(res['username'], 'test')
