@@ -10,7 +10,8 @@ except ImportError:
 
 from django.contrib.auth.models import User
 
-from cbchannels.generic.models import ObjectSubscribeConsumers, SimpleSerializer
+from cbchannels.generic.models import ObjectSubscribeConsumers, ModelSubscribeConsumers
+from cbchannels.generic.serializers import SimpleSerializer
 
 
 class ModelsTestCase(ChannelTestCase):
@@ -39,7 +40,7 @@ class ModelsTestCase(ChannelTestCase):
         client = HttpClient()
         with apply_routes([routes]):
             # subscribe for object changes
-            client.send_and_consume('websocket.connect', content={'path': '/{}'.format(sub_object.pk)})
+            client.send_and_consume(u'websocket.connect', content={'path': '/{}'.format(sub_object.pk)})
 
             # change sub object
             sub_object.username = 'sub_object'
@@ -112,10 +113,9 @@ class ModelsTestCase(ChannelTestCase):
             # subscribe for object changes
             client.send_and_consume(u'websocket.connect', content={'path': '/{}'.format('1')})
 
-            # create object for subscribe
+            # create object
             User.objects.create_user(username='test', email='t@t.tt')
-            rev = client.receive()
-            res = json.loads(rev['created'])
+            res = json.loads(client.receive()['created'])
             self.assertEqual(res['username'], 'test')
             self.assertEqual(res['is_active'], True)
             self.assertEqual(res['email'], 't@t.tt')
@@ -125,7 +125,31 @@ class ModelsTestCase(ChannelTestCase):
             self.assertIsNone(client.receive())
 
     def test_model_sub(self):
-            pass
+        # define consumers
+        routes = ModelSubscribeConsumers.as_routes(model=User)
+        # create client
+        client = HttpClient()
+
+        # create object
+        user = User.objects.create_user(username='test', email='t@t.tt')
+
+        with apply_routes([routes]):
+            # subscribe for Models changes
+            client.send_and_consume(u'websocket.connect')
+
+            # change object
+            user.username = 'new username'
+            user.save()
+
+            res = json.loads(client.receive()['updated'])
+            self.assertEqual(res['username'], 'new username')
+            self.assertEqual(res['email'], 't@t.tt')
+
+            # create new one
+            User.objects.create_user(username='test2', email='t2@t.tt')
+            res = json.loads(client.receive()['created'])
+            self.assertEqual(res['username'], 'test2')
+            self.assertEqual(res['email'], 't2@t.tt')
 
     def test_get_mixin(self):
         pass

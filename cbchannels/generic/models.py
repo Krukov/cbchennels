@@ -1,13 +1,9 @@
 import copy
-import json
 import hashlib
 from functools import partial
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.forms.models import model_to_dict
-from django.core import serializers
-from django.core.serializers.json import DjangoJSONEncoder
 from django.core.paginator import InvalidPage, Paginator
 from django.utils.translation import ugettext as _
 
@@ -19,46 +15,13 @@ except ImportError:
 from ..base import Consumers, consumer
 from ..exceptions import ConsumerError
 from .base import GroupMixin
+from .serializers import SimpleSerializer
 
 
 def _md5(message):
     md5 = hashlib.md5()
     md5.update(message.encode())
     return md5.hexdigest()
-
-
-class SimpleSerializer(object):
-
-    def __init__(self, instance=None, data=None, **kwargs):
-        self.instance = instance
-        self._data = data
-        self._validated_data = None
-        self.kwargs = kwargs
-
-    @property
-    def data(self):
-        return json.dumps(model_to_dict(self.instance, **self.kwargs), cls=DjangoJSONEncoder)
-
-    def is_valid(self):
-        self._validated_data = json.loads(self.data, cls=DjangoJSONEncoder)
-        return True
-
-    @property
-    def validated_data(self):
-        return self._validated_data
-
-
-class DjangoSerializer(SimpleSerializer):
-
-    @property
-    def data(self):
-        if not self._data:
-            self._data = serializers.serialize(self.kwargs.get('format', 'json'), [self.instance], **self.kwargs)
-        return self._data
-
-    def is_valid(self):
-        self._validated_data = serializers.deserialize(self.kwargs.get('format', 'json'), self.data, **self.kwargs)
-        return True
 
 
 class SingleObjectMixin(object):
@@ -169,13 +132,18 @@ class MultipleObjectMixin(object):
             })
 
 
-class ModelSubscribeConsumers(GroupMixin, Consumers):
+class ModelSubscribeConsumers(SingleObjectMixin, GroupMixin, Consumers):
     serializer_class = SimpleSerializer
-    _group_name = '{m.__module__}.{m.__name__}.{cls.__module__}.{cls.__name__}'
+    serializer_kwargs = {}
+    _group_name = '{m.__module__}.{m.__name__}.{uid}'
+    _uid = None
 
     @classmethod
-    def get_group_name(cls, **kwargs):
-        return cls._group_name.format(m=cls.model or cls.queryset.model)
+    def get_group_name_for_model(cls, model, uid):
+        return cls._group_name.format(m=model, uid=uid)
+
+    def get_group_name(self, **kwargs):
+        return self.get_group_name_for_model(self.model or self.queryset.model, uid=self._uid)
 
     @classmethod
     def as_routes(cls, **kwargs):
@@ -183,21 +151,30 @@ class ModelSubscribeConsumers(GroupMixin, Consumers):
             model = kwargs['queryset'].model
         else:
             model = kwargs.get('model') or cls.model or cls.queryset.model
-        receiver(post_save, sender=model)(cls._post_save)
+        dispatch_uid = _md5(str(cls) + str(kwargs))
+        kwargs['_uid'] = dispatch_uid
+        kwargs.setdefault('queryset', cls.queryset)
+        receiver(post_save, sender=model, weak=False, dispatch_uid=dispatch_uid)(partial(cls._post_save, **kwargs))
         return super(ModelSubscribeConsumers, cls).as_routes(**kwargs)
 
     def _get_channel_name(self):
-        self.channel_name = self.channel_name or self.get_group_name(self)
+        self.channel_name = self.channel_name or self.get_group_name()
         return super(ModelSubscribeConsumers, self)._get_channel_name()
 
     @classmethod
-    def _post_save(cls, sender, instance, created, **kwargs):
-        if cls.queryset:
-            if not cls.queryset.get(pk=instance.pk):
+    def _post_save(cls, sender, instance, created, update_fields, _uid, **kwargs):
+        if kwargs.get('queryset'):
+            if not kwargs['queryset'].exists(pk=instance.pk):
                 return
-        _model_data = cls.serializer_class(instance).data
+        serializer_kwargs = copy.deepcopy(cls.serializer_kwargs)
+        serializer_kwargs.update(kwargs.get('serializer_kwargs', {}))
+        if 'fields' in serializer_kwargs and update_fields:
+            serializer_kwargs['fields'] = set(serializer_kwargs['fields']).intersection(update_fields)
+
+        _model_data = cls.serializer_class(instance, **serializer_kwargs).data
         data = {"created" if created else "updated": _model_data}
-        Group(cls.get_group_name(), alias=cls._channel_alias,
+
+        Group(cls.get_group_name_for_model(sender, _uid), alias=cls._channel_alias,
               channel_layer=cls._channel_layer).send(data)
 
     def on_connect(self, message, **kwargs):
