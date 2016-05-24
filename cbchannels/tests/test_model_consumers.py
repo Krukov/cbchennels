@@ -10,7 +10,8 @@ except ImportError:
 
 from django.contrib.auth.models import User
 
-from cbchannels.generic.models import ObjectSubscribeConsumers, ModelSubscribeConsumers
+from cbchannels.base import Consumers
+from cbchannels.generic.models import ObjectSubscribeConsumers, ModelSubscribeConsumers, GetMixin
 from cbchannels.generic.serializers import SimpleSerializer
 
 
@@ -94,12 +95,16 @@ class ModelsTestCase(ChannelTestCase):
             self.assertEqual(res['username'], 'test')
             self.assertEqual(res['is_active'], False)
 
-            sub_object.email = 'new@email.com'
-            sub_object.save()
+            sub_object.username = 'test_new'
+            sub_object.save(update_fields=['username'])
 
             res = json.loads(client.receive()['updated'])
-            self.assertEqual(res['username'], 'test')
-            self.assertEqual(res['is_active'], False)
+            self.assertEqual(res['username'], 'test_new')
+            self.assertNotIn('is_active', res)
+            self.assertNotIn('is_staff', res)
+
+            sub_object.email = 'new@email.com'
+            sub_object.save(update_fields=['email'])
 
             # check that nothing happened
             self.assertIsNone(client.receive())
@@ -151,8 +156,46 @@ class ModelsTestCase(ChannelTestCase):
             self.assertEqual(res['username'], 'test2')
             self.assertEqual(res['email'], 't2@t.tt')
 
+    def test_model_sub_with_fields(self):
+        # define consumers
+        routes = ModelSubscribeConsumers.as_routes(model=User,
+                                                   serializer_kwargs={'fields': ['username']})
+        # create client
+        client = HttpClient()
+
+        with apply_routes([routes]):
+            # subscribe for Models changes
+            client.send_and_consume(u'websocket.connect')
+
+            # create object
+            User.objects.create_user(username='test', email='t@t.tt')
+
+            res = json.loads(client.receive()['created'])
+            self.assertEqual(res['username'], 'test')
+            self.assertNotIn('is_active', res)
+            self.assertNotIn('email', res)
+
     def test_get_mixin(self):
-        pass
+        # create object
+        obj = User.objects.create_user(username='test', email='t@t.tt')
+        # create client
+        client = HttpClient()
+
+        # define consumers
+        class _Consumers(GetMixin, Consumers):
+            model = User
+            path = '/(?P<pk>\d+)/?'
+
+        with apply_routes([_Consumers.as_routes()]):
+
+            client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(obj.pk)})
+            client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'get'})
+            client.consume(_Consumers._channel_name_template.format(i=User, slug_field='pk'))
+            res = json.loads(client.receive()['response'])
+
+            self.assertEqual(res['username'], 'test')
+            self.assertEqual(res['email'], 't@t.tt')
+            self.assertEqual(res['is_active'], True)
 
     def test_create_mixin(self):
         pass

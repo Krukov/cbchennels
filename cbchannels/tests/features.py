@@ -120,9 +120,9 @@ class HttpClient(object):
         if fail_on_none:
             raise ValueError('No message or consumer for message')
 
-    def send_and_consume(self, channel, content={}):
+    def send_and_consume(self, channel, content={}, fail_on_none=True):
         self.send(channel, content)
-        return self.consume(channel)
+        return self.consume(channel, fail_on_none=fail_on_none)
 
     def receive(self):
         message = self.get_next_message(self.reply_channel)

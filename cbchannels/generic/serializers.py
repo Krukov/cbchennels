@@ -15,7 +15,9 @@ class SimpleSerializer(object):
 
     @property
     def data(self):
-        return json.dumps(model_to_dict(self.instance, **self.kwargs), cls=DjangoJSONEncoder)
+        data = model_to_dict(self.instance, **self.kwargs)
+        if data:
+            return json.dumps(data, cls=DjangoJSONEncoder)
 
     def is_valid(self):
         self._validated_data = json.loads(self.data, cls=DjangoJSONEncoder)

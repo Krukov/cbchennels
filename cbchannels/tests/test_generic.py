@@ -37,6 +37,7 @@ class TestGeneric(ChannelTestCase):
         class _GroupConsumers(GroupConsumers):
             path = '/test/(?P<test>\d+)'
             group_name = 'test_{test}'
+            channel_name = 'test'
 
         with apply_routes([_GroupConsumers.as_routes()]):
             self.client.send_and_consume(u'websocket.connect',
@@ -63,13 +64,13 @@ class TestGeneric(ChannelTestCase):
         with apply_routes([_Consumers.as_routes(), ]):
             self.client.send_and_consume(u'websocket.connect', {'path': '/test/123'})
             self.client.send_and_consume(u'websocket.receive', {'message': 'test', 'path': '/test/123'})
-            user = self.client.consume(u'test.receive')
+            user = self.client.consume(u'test')
             self.assertTrue(isinstance(user, AnonymousUser))
             self.client.send_and_consume(u'websocket.disconnect', {'path': '/test/123'})
 
             self.client.login(username='test', password='123')
             self.client.send_and_consume(u'websocket.connect', {'path': '/test/123'})
             self.client.send_and_consume(u'websocket.receive', {'message': 'test', 'path': '/test/123'})
-            user = self.client.consume(u'test.receive')
+            user = self.client.consume(u'test')
             self.assertTrue(isinstance(user, User))
             self.assertDictEqual(self.client.receive(), {'test': 123})

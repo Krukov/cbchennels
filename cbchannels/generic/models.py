@@ -5,6 +5,7 @@ from functools import partial
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.paginator import InvalidPage, Paginator
+from django.utils.functional import cached_property
 from django.utils.translation import ugettext as _
 
 try:
@@ -29,11 +30,21 @@ class SingleObjectMixin(object):
     queryset = None
     slug_field = 'pk'
     slug_path_kwarg = 'pk'
+    _channel_name_template = '{i.__module__}_{i.__name__}_{slug_field}'
+
+    @classmethod
+    def _get_channel_name(cls, **kwargs):
+        if 'queryset' in kwargs:
+            model = kwargs['queryset'].model
+        else:
+            model = kwargs.get('model') or cls.model or cls.queryset.model
+        t = cls._channel_name_template
+        return cls.channel_name or t.format(i=model, slug_field=kwargs.get('slug_field', cls.slug_field))
 
     def get_queryset(self):
         return self.queryset or self.model._default_manager.all()
 
-    @property
+    @cached_property
     def instance(self):
         queryset = self.get_queryset()
         slug = self.kwargs.get(self.slug_path_kwarg)
@@ -73,21 +84,18 @@ class ObjectSubscribeConsumers(GroupMixin, SingleObjectMixin, Consumers):
         receiver(post_save, sender=model, weak=False, dispatch_uid=dispatch_uid)(partial(cls._post_save, **kwargs))
         return super(ObjectSubscribeConsumers, cls).as_routes(**kwargs)
 
-    def _get_channel_name(self):
-        self.channel_name = self.channel_name or self.get_group_name()
-        return super(ObjectSubscribeConsumers, self)._get_channel_name()
-
     @classmethod
     def _post_save(cls, sender, instance, created, update_fields, _uid, **kwargs):
         serializer_kwargs = copy.deepcopy(cls.serializer_kwargs)
         serializer_kwargs.update(kwargs.get('serializer_kwargs', {}))
         if 'fields' in serializer_kwargs and update_fields:
-            serializer_kwargs['fields'] = set(serializer_kwargs['fields']).intersection(update_fields)
+            serializer_kwargs['fields'] = set(serializer_kwargs['fields']).intersection(update_fields) or ['_']
 
         _model_data = cls.serializer_class(instance, **serializer_kwargs).data
-        data = {"created" if created else "updated": _model_data}
-        Group(cls.get_group_name_for_instance(instance, uid=_uid), alias=cls._channel_alias,
-              channel_layer=cls._channel_layer).send(data)
+        if _model_data:
+            data = {"created" if created else "updated": _model_data}
+            Group(cls.get_group_name_for_instance(instance, uid=_uid), alias=cls._channel_alias,
+                  channel_layer=cls._channel_layer).send(data)
 
     def on_connect(self, message, **kwargs):
         super(ObjectSubscribeConsumers, self).on_connect(message, **kwargs)
@@ -169,13 +177,14 @@ class ModelSubscribeConsumers(SingleObjectMixin, GroupMixin, Consumers):
         serializer_kwargs = copy.deepcopy(cls.serializer_kwargs)
         serializer_kwargs.update(kwargs.get('serializer_kwargs', {}))
         if 'fields' in serializer_kwargs and update_fields:
-            serializer_kwargs['fields'] = set(serializer_kwargs['fields']).intersection(update_fields)
+            serializer_kwargs['fields'] = set(serializer_kwargs['fields']).intersection(update_fields) or ['_']
 
         _model_data = cls.serializer_class(instance, **serializer_kwargs).data
-        data = {"created" if created else "updated": _model_data}
+        if _model_data:
+            data = {"created" if created else "updated": _model_data}
 
-        Group(cls.get_group_name_for_model(sender, _uid), alias=cls._channel_alias,
-              channel_layer=cls._channel_layer).send(data)
+            Group(cls.get_group_name_for_model(sender, _uid), alias=cls._channel_alias,
+                  channel_layer=cls._channel_layer).send(data)
 
     def on_connect(self, message, **kwargs):
         super(ModelSubscribeConsumers, self).on_connect(message, **kwargs)

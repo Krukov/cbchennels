@@ -19,6 +19,8 @@ class MainTest(TestCase):
     def test_as_routes(self):
 
         class Test(Consumers):
+            channel_name = 'test'
+
             @consumer(tag='test')
             def test(this, message):
                 return message
@@ -34,7 +36,7 @@ class MainTest(TestCase):
         routes = Test.as_routes(channel_name='test', path='^new$', _channel_layer=channel_layer)
         self.assertTrue(isinstance(routes, include))
         self.assertEqual(routes.channel_names(), {'websocket.receive', 'websocket.connect',
-                                                  'test.receive', 'websocket.disconnect'})
+                                                  'test', 'websocket.disconnect'})
         self.assertEqual(len(routes.routing), 2)
         self.assertEqual(len(routes.routing[0].routing), 3)
         self.assertEqual(len(routes.routing[1].routing), 2)
@@ -45,11 +47,12 @@ class MainTest(TestCase):
 
         message = Message({'path': 'new', 'tag': 'test'}, 'websocket.receive', channel_layer)
         routes.match(message)[0](message)
-        self.assertEqual(channel_layer.receive_many(['test.receive', ])[1], {'path': 'new', 'tag': 'test'})
+        self.assertEqual(channel_layer.receive_many(['test', ])[1], {'path': 'new', 'tag': 'test'})
 
     def test_as_routes_without_custom_routes(self):
         class Test(Consumers):
             path = '^new$'
+            channel_name = 'test'
 
             def on_connect(this, message):
                 return 'connect'
@@ -110,7 +113,7 @@ class MainTest(TestCase):
         self.assertTrue(_consumer(message, **kwargs).decor2)
         self.assertTrue(_consumer(message, **kwargs).decor)
 
-        message = Message({'path': '/new', 'tag': 'test'}, 'test.receive', channel_layer)
+        message = Message({'path': '/new', 'tag': 'test'}, 'test', channel_layer)
         _consumer, kwargs = routes.match(message)
         self.assertEqual(kwargs, {'tag': 'test'})
         self.assertTrue(_consumer(message, **kwargs)[0].decor)
@@ -168,7 +171,7 @@ class MainTest(TestCase):
             client = HttpClient()
             client.send_and_consume(u'websocket.connect', content={'path': '/name/123/'})
             client.send_and_consume(u'websocket.receive', content={'path': '/name/123', 'tag': 'tag'})
-            client.consume(u'test.receive')
+            client.consume(u'test')
             content = client.receive()
 
             self.assertDictEqual(content, {'test': 'tag', 'slug': 'name', 'kwargs': 'name'})
