@@ -69,7 +69,8 @@ class Consumers(object):
             self = this or cls(**init_kwargs)
             self.message = message
             self.reply_channel = getattr(message, 'reply_channel', None)
-            self.kwargs = kwargs
+            self.kwargs = copy(kwargs) or {}
+            self.kwargs.update(message.content.get('_kwargs', {}))
             try:
                 return func(self, message, **kwargs)
             except ConsumerError as e:
