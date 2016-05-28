@@ -190,7 +190,7 @@ class ModelsTestCase(ChannelTestCase):
 
             client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(obj.pk)})
             client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'get'})
-            client.consume(_Consumers._channel_name_template.format(i=User, slug_field='pk'))
+            client.consume(_Consumers._get_channel_name())
             res = json.loads(client.receive()['response'])
 
             self.assertEqual(res['username'], 'test')

@@ -1,3 +1,4 @@
+
 from functools import wraps
 from unittest import TestCase
 
@@ -15,6 +16,30 @@ from .features import apply_routes, HttpClient
 
 
 class MainTest(TestCase):
+
+    def test_dynamic_channels_names(self):
+
+        class Test(Consumers):
+
+            channel_name = 'test1'
+
+            @consumer
+            def test(self, message):
+                return self.channel_name
+
+        channel_layer = ImMemoryChannelLayer()
+        test = Test.as_routes(_channel_layer=channel_layer)
+        test_2 = Test.as_routes(channel_name='test', _channel_layer=channel_layer)
+        client = HttpClient()
+
+        with apply_routes([test]):
+            client.send_and_consume(u'websocket.receive',)
+
+        with apply_routes([test_2]):
+            client.send_and_consume(u'websocket.receive')
+
+        self.assertEqual(len(channel_layer._channels), 2, channel_layer._channels.keys())
+        self.assertIn('test', channel_layer._channels.keys())
 
     def test_as_routes(self):
 

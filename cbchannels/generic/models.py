@@ -15,7 +15,7 @@ except ImportError:
 
 from ..base import Consumers, consumer
 from ..exceptions import ConsumerError
-from .base import GroupMixin
+from .base import GroupMixin, NoReceiveMixin
 from .serializers import SimpleSerializer
 
 
@@ -57,7 +57,7 @@ class SingleObjectMixin(object):
                                 {'verbose_name': queryset.model._meta.verbose_name})
 
 
-class ObjectSubscribeConsumers(GroupMixin, SingleObjectMixin, Consumers):
+class ObjectSubscribeConsumers(NoReceiveMixin, GroupMixin, SingleObjectMixin, Consumers):
     serializer_class = SimpleSerializer
     serializer_kwargs = {}
     _group_name = '{i.__module__}_{i.__class__.__name__}_{slug_field}_{uid}'
@@ -140,7 +140,7 @@ class MultipleObjectMixin(object):
             })
 
 
-class ModelSubscribeConsumers(SingleObjectMixin, GroupMixin, Consumers):
+class ModelSubscribeConsumers(NoReceiveMixin, SingleObjectMixin, GroupMixin, Consumers):
     serializer_class = SimpleSerializer
     serializer_kwargs = {}
     _group_name = '{m.__module__}.{m.__name__}.{uid}'
