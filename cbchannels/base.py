@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import six
 from copy import copy
 from functools import wraps
@@ -102,10 +104,11 @@ class Consumers(object):
     @classmethod
     def _get_channel_name(cls, **kwargs):
         """Return internal channel name"""
-
-        if not cls.channel_name:
-            raise ValueError('Set channel_name for consumers %s',  cls)
-        return cls.channel_name
+        if 'channel_name' in kwargs:
+            return kwargs['channel_name']
+        if cls.channel_name:
+            return cls.channel_name
+        raise ValueError('Set channel_name for consumers %s',  cls)
 
     # ROUTES API
 
@@ -142,7 +145,7 @@ class Consumers(object):
         pass
 
     def on_receive(self, message, **kwargs):
-        """Consumer for receive at external channel"""
+        """Consumer for receive aedt external channel"""
         if self._get_channel_name():
             content = copy(message.content)
             if self.reply_channel:
