@@ -48,10 +48,14 @@ class Consumers(object):
     _channel_layer = None
     _channel_alias = DEFAULT_CHANNEL_LAYER
 
-    def __init__(self, **kwargs):
-        self.message = self.reply_channel = self.kwargs = None
-        self._init_kwargs = kwargs
-        for key, value in six.iteritems(kwargs):
+    def __init__(self, message=None, kwargs={}, **init_kwargs):
+        self.message = message
+        self.reply_channel = getattr(message, 'reply_channel', None)
+        self.kwargs = copy(kwargs) or {}
+        self.kwargs.update(message.content.get('_kwargs', {}))
+
+        self._init_kwargs = init_kwargs
+        for key, value in six.iteritems(init_kwargs):
             if key in ['message', 'kwargs', 'reply_channel']:
                 raise ValueError('Do not use "{}" key word at '
                                  'Consumers create'.format(key))
@@ -68,11 +72,7 @@ class Consumers(object):
 
         @wraps(func)
         def _consumer(message, **kwargs):
-            self = this or cls(**init_kwargs)
-            self.message = message
-            self.reply_channel = getattr(message, 'reply_channel', None)
-            self.kwargs = copy(kwargs) or {}
-            self.kwargs.update(message.content.get('_kwargs', {}))
+            self = this or cls(message, kwargs, **init_kwargs)
             try:
                 return func(self, message, **kwargs)
             except ConsumerError as e:
@@ -145,8 +145,8 @@ class Consumers(object):
         pass
 
     def on_receive(self, message, **kwargs):
-        """Consumer for receive aedt external channel"""
-        if self._get_channel_name():
+        """Consumer for receive message to the external channel"""
+        if self.get_channels_name():
             content = copy(message.content)
             if self.reply_channel:
                 content['reply_channel'] = message.reply_channel
@@ -163,9 +163,12 @@ class Consumers(object):
     @property
     def channel(self):
         """Return internal channel"""
-        return Channel(self._get_channel_name(**self._init_kwargs),
+        return Channel(self.get_channels_name(),
                        alias=self._channel_alias,
                        channel_layer=self._channel_layer)
+
+    def get_channels_name(self):
+        return self._get_channel_name(**self._init_kwargs)
 
     @classmethod
     def get_decorators(cls):
