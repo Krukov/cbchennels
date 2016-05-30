@@ -20,12 +20,18 @@ from .serializers import SimpleSerializer
 
 
 def _md5(message):
+    """
+    Calculate md5 hash of message
+    """
     md5 = hashlib.md5()
     md5.update(message.encode())
     return md5.hexdigest()
 
 
 class SingleObjectMixin(object):
+    """
+    Mixin Provides the ability to retrieve a single object for further manipulation.
+    """
     model = None
     queryset = None
     slug_field = 'pk'
@@ -34,6 +40,11 @@ class SingleObjectMixin(object):
 
     @classmethod
     def _get_channel_name(cls, **kwargs):
+        try:
+            return super(SingleObjectMixin, cls)._get_channel_name(**kwargs)
+        except ValueError:
+            pass
+
         if 'queryset' in kwargs:
             model = kwargs['queryset'].model
         else:
@@ -57,7 +68,22 @@ class SingleObjectMixin(object):
                                 {'verbose_name': queryset.model._meta.verbose_name})
 
 
+class SerializerMixin(object):
+    """
+    Mixin Provides the ability to use serializers.
+    """
+    serializer_class = SimpleSerializer
+    serializer_kwargs = {}
+
+    def get_serializer(self, **kwargs):
+        kwargs.update(self.serializer_kwargs)
+        return self.serializer_class(**kwargs)
+
+
 class ObjectSubscribeConsumers(NoReceiveMixin, GroupMixin, SingleObjectMixin, Consumers):
+    """
+    Consumers collection which Provides the ability to subscribe for object changes
+    """
     serializer_class = SimpleSerializer
     serializer_kwargs = {}
     _group_name = '{i.__module__}_{i.__class__.__name__}_{slug_field}_{uid}'
@@ -107,6 +133,9 @@ class ObjectSubscribeConsumers(NoReceiveMixin, GroupMixin, SingleObjectMixin, Co
 
 
 class MultipleObjectMixin(object):
+    """
+    Mixin Provides the ability to retrieve collection of objects for further manipulation
+    """
     queryset = None
     model = None
     paginate_by = None
@@ -141,6 +170,9 @@ class MultipleObjectMixin(object):
 
 
 class ModelSubscribeConsumers(NoReceiveMixin, SingleObjectMixin, GroupMixin, Consumers):
+    """
+    Consumers collection which Provides the ability to subscribe for models updates ()
+    """
     serializer_class = SimpleSerializer
     serializer_kwargs = {}
     _group_name = '{m.__module__}.{m.__name__}.{uid}'
@@ -165,9 +197,9 @@ class ModelSubscribeConsumers(NoReceiveMixin, SingleObjectMixin, GroupMixin, Con
         receiver(post_save, sender=model, weak=False, dispatch_uid=dispatch_uid)(partial(cls._post_save, **kwargs))
         return super(ModelSubscribeConsumers, cls).as_routes(**kwargs)
 
-    def _get_channel_name(self):
+    def get_channels_name(self):
         self.channel_name = self.channel_name or self.get_group_name()
-        return super(ModelSubscribeConsumers, self)._get_channel_name()
+        return super(ModelSubscribeConsumers, self).get_channels_name()
 
     @classmethod
     def _post_save(cls, sender, instance, created, update_fields, _uid, **kwargs):
@@ -195,39 +227,77 @@ class ModelSubscribeConsumers(NoReceiveMixin, SingleObjectMixin, GroupMixin, Con
         self.get_group().discard(self.reply_channel)
 
 
-class CreateMixin(SingleObjectMixin):
-    serializer_class = SimpleSerializer
+class CreateMixin(object):
+    """
+    Mixin - Adds the consumer that create object.
+    Using with SerializerMixin and SingleObjectMixin
+    """
 
     @consumer(action='create', data='.+')
     def create(self, message):
-        serializer = self.serializer_class(data=message.content['data'])
+        serializer = self.get_serializer(data=message.content['data'])
         if serializer.is_valid():
             self.get_queryset().model._default_manager.create(**serializer.validated_data)
         self.reply_channel.send({'response': 'ok'})
 
 
-class GetMixin(SingleObjectMixin):
-    serializer_class = SimpleSerializer
+class GetMixin(object):
+    """
+    Mixin - Adds the consumer that send to reply channel serializing object data.
+    Using with SerializerMixin and SingleObjectMixin
+    """
 
     @consumer(action='get')
     def get(self, message):
-        self.reply_channel.send({'response': self.serializer_class(instance=self.instance).data})
+        self.reply_channel.send({'response': self.get_serializer(instance=self.instance).data})
 
 
-class UpdateMixin(SingleObjectMixin):
-    serializer_class = SimpleSerializer
+class UpdateMixin(object):
+    """
+    Mixin - Adds the consumer that update object.
+    Using with SerializerMixin and SingleObjectMixin
+    """
 
     @consumer(action='update', data='.+')
     def update(self, message):
-        serializer = self.serializer_class(data=message.content['data'])
+        serializer = self.get_serializer(instance=self.instance, data=message.content['data'])
         if serializer.is_valid():
-            pass
-        self.reply_channel.send({'response': 'ok'})
+            instance = self.instance
+            for field, value in serializer.validated_data.items():
+                setattr(instance, field, value)
+            instance.save()
+            self.reply_channel.send({'response': 'ok'})
 
 
-class DeleteMixin(SingleObjectMixin):
+class DeleteMixin(object):
+    """
+    Mixin - Adds consumer that delete object.
+    Using with SerializerMixin and SingleObjectMixin
+    """
 
     @consumer(action='delete')
     def delete(self, message):
         self.instance.delete()
         self.reply_channel.send({'response': 'ok'})
+
+
+class CRUDConsumers(CreateMixin, GetMixin, UpdateMixin, DeleteMixin, SerializerMixin, SingleObjectMixin, Consumers):
+    """
+    Consumers collection - Provides base methods for object manipulations Create, Read, Update and Delete
+    """
+
+
+class ReadOnlyConsumers(GetMixin, SerializerMixin, SingleObjectMixin, Consumers):
+    pass
+
+
+class CreateConsumers(CreateMixin, SerializerMixin, SingleObjectMixin, Consumers):
+    pass
+
+
+class DeleteConsumers(DeleteMixin, SerializerMixin, SingleObjectMixin, Consumers):
+    pass
+
+
+class UpdateConsumers(UpdateMixin, SerializerMixin, SingleObjectMixin, Consumers):
+    pass

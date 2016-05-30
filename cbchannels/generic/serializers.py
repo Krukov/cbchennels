@@ -15,12 +15,14 @@ class SimpleSerializer(object):
 
     @property
     def data(self):
-        data = model_to_dict(self.instance, **self.kwargs)
-        if data:
-            return json.dumps(data, cls=DjangoJSONEncoder)
+        if not self._data:
+            data = model_to_dict(self.instance, **self.kwargs)
+            if data:
+                self._data = json.dumps(data, cls=DjangoJSONEncoder)
+        return self._data
 
     def is_valid(self):
-        self._validated_data = json.loads(self.data, cls=DjangoJSONEncoder)
+        self._validated_data = json.loads(self.data)
         return True
 
     @property

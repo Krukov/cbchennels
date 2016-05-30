@@ -33,7 +33,7 @@ class MainTest(TestCase):
         client = HttpClient()
 
         with apply_routes([test]):
-            client.send_and_consume(u'websocket.receive',)
+            client.send_and_consume(u'websocket.receive')
 
         with apply_routes([test_2]):
             client.send_and_consume(u'websocket.receive')

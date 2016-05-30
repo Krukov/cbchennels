@@ -81,7 +81,7 @@ class PermissionMixin(object):
             super(PermissionMixin, self).on_receive(*args, **kwargs)
 
 
-class RoomConsumers(SessionMixin):
+class RoomMixin(SessionMixin):
     channel_name = '_room'
 
     @property
@@ -99,7 +99,7 @@ class RoomConsumers(SessionMixin):
     @consumer(command="^send$")
     def send(self, message):
         if self.room in self.session:
-            self.room_group.send(self.message['message'])
+            self.room_group.send(self.message['text'])
 
     @property
     def room_group(self):
@@ -107,6 +107,9 @@ class RoomConsumers(SessionMixin):
 
 
 class NoReceiveMixin(object):
+    """
+    Mixin - overwrite on_receive method as blank
+    """
 
     def on_receive(self, message, **kwargs):
         pass

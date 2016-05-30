@@ -10,8 +10,8 @@ except ImportError:
 
 from django.contrib.auth.models import User
 
-from cbchannels.base import Consumers
-from cbchannels.generic.models import ObjectSubscribeConsumers, ModelSubscribeConsumers, GetMixin
+from cbchannels.generic.models import (ObjectSubscribeConsumers, ModelSubscribeConsumers, ReadOnlyConsumers,
+                                       CreateConsumers, DeleteConsumers, UpdateConsumers)
 from cbchannels.generic.serializers import SimpleSerializer
 
 
@@ -181,16 +181,11 @@ class ModelsTestCase(ChannelTestCase):
         # create client
         client = HttpClient()
 
-        # define consumers
-        class _Consumers(GetMixin, Consumers):
-            model = User
-            path = '/(?P<pk>\d+)/?'
-
-        with apply_routes([_Consumers.as_routes()]):
+        with apply_routes([ReadOnlyConsumers.as_routes(model=User, path='/(?P<pk>\d+)/?', channel_name='test')]):
 
             client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(obj.pk)})
             client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'get'})
-            client.consume(_Consumers._get_channel_name())
+            client.consume('test')
             res = json.loads(client.receive()['response'])
 
             self.assertEqual(res['username'], 'test')
@@ -198,10 +193,46 @@ class ModelsTestCase(ChannelTestCase):
             self.assertEqual(res['is_active'], True)
 
     def test_create_mixin(self):
-        pass
+        # create client
+        client = HttpClient()
+        data = {'username': 'test', 'email': 't@t.tt'}
+
+        with apply_routes([CreateConsumers.as_routes(model=User, path='/', channel_name='test')]):
+            client.send_and_consume(u'websocket.connect', {'path': '/'})
+            client.send_and_consume(u'websocket.receive', {'path': '/', 'action': 'create',
+                                                           'data': json.dumps(data)})
+            client.consume(u'test')
+
+        self.assertTrue(User.objects.filter(username='test', email='t@t.tt').exists())
 
     def test_update_mixin(self):
-        pass
+        # create object
+        obj = User.objects.create_user(username='test', email='t@t.tt')
+        # create client
+        client = HttpClient()
 
-    def test_delete_mixin(self):
-        pass
+        data = {'username': 'new_name'}
+        with apply_routes([UpdateConsumers.as_routes(model=User, path='/(?P<pk>\d+)/?', channel_name='test')]):
+
+            client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(obj.pk)})
+            client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'update',
+                                                           'data': json.dumps(data)})
+            client.consume(u'test')
+
+        user = User.objects.filter(pk=obj.pk).first()
+        self.assertTrue(user)
+        self.assertEqual(user.username, 'new_name')
+
+
+def test_delete_mixin(self):
+        # create object
+        obj = User.objects.create_user(username='test', email='t@t.tt')
+        # create client
+        client = HttpClient()
+
+        with apply_routes([DeleteConsumers.as_routes(model=User, path='/(?P<pk>\d+)/?', channel_name='test')]):
+            client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(obj.pk)})
+            client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'delete'})
+            client.consume('test')
+
+        self.assertFalse(User.objects.filter(pk=obj.pk).exists())
