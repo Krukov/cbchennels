@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import json
 import six
 from copy import copy
 from functools import wraps
@@ -173,3 +174,6 @@ class Consumers(object):
     @classmethod
     def get_decorators(cls):
         return cls.decorators[:]
+
+    def reply(self, content):
+        self.message.reply_channel.send({"text": json.dumps(content)})
