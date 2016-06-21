@@ -214,10 +214,10 @@ class ModelsTestCase(ChannelTestCase):
         data = {'username': 'new_name'}
         with apply_routes([UpdateConsumers.as_routes(model=User, path='/(?P<pk>\d+)/?', channel_name='test')]):
 
-            client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(obj.pk)})
-            client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'update',
+            client.send_and_consume('websocket.connect', {'path': '/{}'.format(obj.pk)})
+            client.send_and_consume('websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'update',
                                                            'data': json.dumps(data)})
-            client.consume(u'test')
+            client.consume('test')
 
         user = User.objects.filter(pk=obj.pk).first()
         self.assertTrue(user)

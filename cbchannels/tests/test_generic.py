@@ -10,7 +10,7 @@ except ImportError:
 
 from django.contrib.auth.models import AnonymousUser, User
 
-from cbchannels import Consumers, consumer
+from cbchannels import WebsocketConsumers as Consumers, consumer
 from cbchannels.generic.base import GroupConsumers
 from cbchannels.generic.auth import UserMixin
 

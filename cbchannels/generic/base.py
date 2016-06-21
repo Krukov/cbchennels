@@ -6,7 +6,7 @@ except ImportError:
     from channels import Group
     from channels.sessions import channel_session, http_session
 
-from ..base import consumer, Consumers
+from ..base import consumer, WebsocketConsumers
 
 
 class GroupMixin(object):
@@ -22,7 +22,7 @@ class GroupMixin(object):
         self.get_group().send(content)
 
 
-class GroupConsumers(GroupMixin, Consumers):
+class GroupConsumers(GroupMixin, WebsocketConsumers):
     """
         Add reply_channel to the Group at connect and broadcast at receive
 
@@ -70,14 +70,14 @@ class SessionMixin(object):
 class PermissionMixin(object):
     permissions = []
 
-    def __check_permission(self):
+    def _check_permission(self):
         for perm in self.permissions:
             if not perm(self):
                 return False
         return True
 
     def on_receive(self, *args, **kwargs):
-        if self.__check_permission():
+        if self._check_permission():
             super(PermissionMixin, self).on_receive(*args, **kwargs)
 
 

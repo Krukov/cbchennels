@@ -11,7 +11,7 @@ except ImportError:
 
 from asgiref.inmemory import ChannelLayer as ImMemoryChannelLayer
 
-from cbchannels import Consumers, consumer, apply_decorator
+from cbchannels import WebsocketConsumers as Consumers, consumer, apply_decorator
 from .features import apply_routes, HttpClient
 
 
@@ -62,9 +62,7 @@ class MainTest(TestCase):
         self.assertTrue(isinstance(routes, include))
         self.assertEqual(routes.channel_names(), {'websocket.receive', 'websocket.connect',
                                                   'test', 'websocket.disconnect'})
-        self.assertEqual(len(routes.routing), 2)
-        self.assertEqual(len(routes.routing[0].routing), 3)
-        self.assertEqual(len(routes.routing[1].routing), 2)
+        self.assertEqual(len(routes.routing), 5)
 
         self.assertEqual(routes.match(Message({'new': ''}, 'websocket.receive', channel_layer)), None)
         m = Message({'path': 'new'}, 'websocket.connect', channel_layer)
@@ -134,7 +132,7 @@ class MainTest(TestCase):
         message = Message({'path': '/new'}, 'websocket.connect', channel_layer)
         _consumer, kwargs = routes.match(message)
         self.assertEqual(kwargs, {'slug': 'new'})
-        self.assertEqual(_consumer.__name__, 'on_connect')
+        self.assertEqual(_consumer.__name__, 'ws_connect')
         self.assertTrue(_consumer(message, **kwargs).decor2)
         self.assertTrue(_consumer(message, **kwargs).decor)
 

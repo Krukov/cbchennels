@@ -13,7 +13,7 @@ try:
 except ImportError:
     from channels import Group
 
-from ..base import Consumers, consumer
+from ..base import WebsocketConsumers, consumer
 from ..exceptions import ConsumerError
 from .base import GroupMixin, NoReceiveMixin
 from .serializers import SimpleSerializer
@@ -80,7 +80,7 @@ class SerializerMixin(object):
         return self.serializer_class(**kwargs)
 
 
-class ObjectSubscribeConsumers(NoReceiveMixin, GroupMixin, SingleObjectMixin, Consumers):
+class ObjectSubscribeConsumers(NoReceiveMixin, GroupMixin, SingleObjectMixin, WebsocketConsumers):
     """
     Consumers collection which Provides the ability to subscribe for object changes
     """
@@ -169,7 +169,7 @@ class MultipleObjectMixin(object):
             })
 
 
-class ModelSubscribeConsumers(NoReceiveMixin, SingleObjectMixin, GroupMixin, Consumers):
+class ModelSubscribeConsumers(NoReceiveMixin, SingleObjectMixin, GroupMixin, WebsocketConsumers):
     """
     Consumers collection which Provides the ability to subscribe for models updates ()
     """
@@ -281,23 +281,24 @@ class DeleteMixin(object):
         self.reply_channel.send({'response': 'ok'})
 
 
-class CRUDConsumers(CreateMixin, GetMixin, UpdateMixin, DeleteMixin, SerializerMixin, SingleObjectMixin, Consumers):
+class CRUDConsumers(CreateMixin, GetMixin, UpdateMixin, DeleteMixin,
+                    SerializerMixin, SingleObjectMixin, WebsocketConsumers):
     """
     Consumers collection - Provides base methods for object manipulations Create, Read, Update and Delete
     """
 
 
-class ReadOnlyConsumers(GetMixin, SerializerMixin, SingleObjectMixin, Consumers):
+class ReadOnlyConsumers(GetMixin, SerializerMixin, SingleObjectMixin, WebsocketConsumers):
     pass
 
 
-class CreateConsumers(CreateMixin, SerializerMixin, SingleObjectMixin, Consumers):
+class CreateConsumers(CreateMixin, SerializerMixin, SingleObjectMixin, WebsocketConsumers):
     pass
 
 
-class DeleteConsumers(DeleteMixin, SerializerMixin, SingleObjectMixin, Consumers):
+class DeleteConsumers(DeleteMixin, SerializerMixin, SingleObjectMixin, WebsocketConsumers):
     pass
 
 
-class UpdateConsumers(UpdateMixin, SerializerMixin, SingleObjectMixin, Consumers):
+class UpdateConsumers(UpdateMixin, SerializerMixin, SingleObjectMixin, WebsocketConsumers):
     pass
