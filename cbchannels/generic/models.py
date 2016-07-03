@@ -120,8 +120,7 @@ class ObjectSubscribeConsumers(NoReceiveMixin, GroupMixin, SingleObjectMixin, We
         _model_data = cls.serializer_class(instance, **serializer_kwargs).data
         if _model_data:
             data = {"created" if created else "updated": _model_data}
-            Group(cls.get_group_name_for_instance(instance, uid=_uid), alias=cls._channel_alias,
-                  channel_layer=cls._channel_layer).send(data)
+            Group(cls.get_group_name_for_instance(instance, uid=_uid)).send(data)
 
     def on_connect(self, message, **kwargs):
         super(ObjectSubscribeConsumers, self).on_connect(message, **kwargs)

@@ -1,9 +1,11 @@
 from __future__ import unicode_literals
 
 import json
-import six
+from inspect import isfunction
 from copy import copy
 from functools import wraps
+
+import six
 
 try:
     from django.channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
@@ -12,14 +14,12 @@ except ImportError:
 
 from .exceptions import ConsumerError
 
-_function = type(lambda: None)  # function class, use at isinstance
-
 
 def consumer(channel_name=None, **kwargs):
     """
     Decorator to mark class method as consumer
     """
-    if isinstance(channel_name, _function) and not kwargs:
+    if isfunction(channel_name) and not kwargs:
         channel_name._consumer = {'filter': {}}
         return channel_name
 

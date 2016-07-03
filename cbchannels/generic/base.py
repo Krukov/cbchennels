@@ -16,7 +16,7 @@ class GroupMixin(object):
         return (self.group_name or self.channel_name).format(**kwargs)
 
     def get_group(self):
-        return Group(self.get_group_name(**self.kwargs), alias=self._channel_alias, channel_layer=self._channel_layer)
+        return Group(self.get_group_name(**self.kwargs))
 
     def broadcast(self, content):
         self.get_group().send(content)
@@ -99,11 +99,11 @@ class RoomMixin(SessionMixin):
     @consumer(command="^send$")
     def send(self, message):
         if self.room in self.session:
-            self.room_group.send(self.message['text'])
+            self.room_group.send(message['text'])
 
     @property
     def room_group(self):
-        return Group(self.room, alias=self._channel_alias, channel_layer=self._channel_layer)
+        return Group(self.room)
 
 
 class NoReceiveMixin(object):
