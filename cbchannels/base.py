@@ -15,37 +15,24 @@ except ImportError:
 from .exceptions import ConsumerError
 
 
-def consumer(channel_name=None, **kwargs):
+def consumer(channel_name=None, decorators=[], **kwargs):
     """
     Decorator to mark class method as consumer
     """
     if isfunction(channel_name) and not kwargs:
-        channel_name._consumer = {'filter': {}}
+        channel_name._consumer = {'filter': {}, 'decorators': []}
         return channel_name
 
     def wrap(func):
-        func._consumer = {'filter': kwargs, 'channel_name': channel_name}
+        func._consumer = {'filter': kwargs, 'channel_name': channel_name, 'decorators': decorators}
         return func
     return wrap
-
-
-def apply_decorator(decorator):
-    """Decorator for application decorator to consumers"""
-    def _decorator(func):
-        @wraps(func)
-        def _wrap(self, *args, **kwargs):
-            return decorator(self.__class__._wrap(func,
-                                                  this=self))(*args, **kwargs)
-        return _wrap
-    return _decorator
 
 
 class Consumers(object):
     """Basic class for Class Base Consumers"""
     channel_name = None
     decorators = []
-    _channel_layer = None
-    _channel_alias = DEFAULT_CHANNEL_LAYER
 
     def __init__(self, message=None, kwargs={}, **init_kwargs):
         self.message = message
@@ -61,7 +48,7 @@ class Consumers(object):
             setattr(self, key, value)
 
     @classmethod
-    def _wrap(cls, func, init_kwargs=None, this=None):
+    def _wrap(cls, func, init_kwargs=None):
         """
         Wrapper function for every consumer
         apply decorators and define message, kwargs and reply_channel
@@ -71,13 +58,16 @@ class Consumers(object):
 
         @wraps(func)
         def _consumer(message, **kwargs):
-            self = this or cls(message, kwargs, **init_kwargs)
+            self = cls(message, kwargs, **init_kwargs)
             try:
                 return func(self, message, **kwargs)
-            except ConsumerError as e:
-                self.send({'error': str(e)})
+            except Exception as e:
+                self.at_exception(e)
 
-        for decorator in cls.get_decorators():
+        for decorator in cls.get_decorators(**init_kwargs):
+            _consumer = decorator(_consumer)
+
+        for decorator in func._consumer['decorators']:
             _consumer = decorator(_consumer)
 
         _consumer._wrapped = True
@@ -100,6 +90,25 @@ class Consumers(object):
             return cls.channel_name
         raise ValueError('Set channel_name for consumers %s',  cls)
 
+    @classmethod
+    def _get_filter_value(cls, consumer, key, **kwargs):
+        """
+        Return filter value for given consumer and key
+        """
+        value = consumer._consumer['filter'][key]
+        if callable(value):
+            return value(cls, **kwargs)
+        if isinstance(value, classmethod):
+            return getattr(cls, value.__func__.__name__)(**kwargs)
+        if isinstance(value, staticmethod):
+            return value.__func__(**kwargs)
+        return value
+
+    def at_exception(self, e):
+        if isinstance(e, ConsumerError):
+            return self.reply({'error': str(e)})
+        raise e
+
     # ROUTES API
 
     @classmethod
@@ -115,37 +124,30 @@ class Consumers(object):
                     kwargs.get('channel_name') or cls._get_channel_name(**kwargs))
             if callable(name):
                 name = name(cls, **kwargs)
-            filters = {key: value(cls, **kwargs) if callable(value) else value for key, value
-                       in _consumer._consumer['filter'].items()}
+            filters = {key: cls._get_filter_value(_consumer, key, **kwargs) for key
+                       in _consumer._consumer['filter'].keys()}
             _routes.append(route(name, cls._wrap(_consumer, kwargs), **filters))
         return include(_routes)
 
     # BASE CONSUMERS
 
-    @property
-    def channel(self):
-        """Return internal channel"""
-        return Channel(self.get_channels_name(),
-                       alias=self._channel_alias,
-                       channel_layer=self._channel_layer)
-
-    def get_channels_name(self):
+    def get_channel_name(self):
         return self._get_channel_name(**self._init_kwargs)
 
     @classmethod
-    def get_decorators(cls):
-        return cls.decorators[:]
+    def get_decorators(cls, **kwargs):
+        return copy(cls.decorators)
 
     def reply(self, content):
-        self.message.reply_channel.send({"text": json.dumps(content)})
-
-
-def _get_path(cls, **kwargs):
-    return kwargs.get('path', cls.path)
+        self.reply_channel.send(content)
 
 
 class WebsocketConsumers(Consumers):
     path = ''
+
+    @classmethod
+    def _get_path(cls, **kwargs):
+        return kwargs.get('path', cls.path)
 
     @consumer('websocket.connect', path=_get_path)
     def ws_connect(self, message, **kwargs):
@@ -160,16 +162,13 @@ class WebsocketConsumers(Consumers):
         return self.on_receive(message, **kwargs)
 
     def on_connect(self, message, **kwargs):
-        """Consumer for connection at external channel"""
         pass
 
     def on_disconnect(self, message, **kwargs):
-        """Consumer for disconnection at external channel"""
         pass
 
     def on_receive(self, message, **kwargs):
-        """Consumer for receive message to the external channel"""
-        if self.get_channels_name():
+        if self.get_channel_name():
             content = copy(message.content)
             if self.reply_channel:
                 content['reply_channel'] = message.reply_channel
@@ -179,7 +178,13 @@ class WebsocketConsumers(Consumers):
                 content['_kwargs'] = self.kwargs
             self.send(content)
 
+    @property
+    def channel(self):
+        return Channel(self.get_channel_name())
+
     def send(self, content):
         """Send content to internal channel"""
         self.channel.send(content)
 
+    def reply(self, text):
+        super(WebsocketConsumers, self).reply({"text": json.dumps(text)})

@@ -1,21 +1,15 @@
 
 from functools import wraps
-from unittest import TestCase
 
-try:
-    from django.channels import include
-    from django.channels.message import Message
-except ImportError:
-    from channels import include
-    from channels.message import Message
+from channels import include, DEFAULT_CHANNEL_LAYER
+from channels.message import Message
+from channels.tests import apply_routes, HttpClient, ChannelTestCase
+from channels.asgi import channel_layers
 
-from asgiref.inmemory import ChannelLayer as ImMemoryChannelLayer
-
-from cbchannels import WebsocketConsumers as Consumers, consumer, apply_decorator
-from .features import apply_routes, HttpClient
+from cbchannels import WebsocketConsumers as Consumers, consumer
 
 
-class MainTest(TestCase):
+class MainTest(ChannelTestCase):
 
     def test_dynamic_channels_names(self):
 
@@ -27,9 +21,8 @@ class MainTest(TestCase):
             def test(self, message):
                 return self.channel_name
 
-        channel_layer = ImMemoryChannelLayer()
-        test = Test.as_routes(_channel_layer=channel_layer)
-        test_2 = Test.as_routes(channel_name='test', _channel_layer=channel_layer)
+        test = Test.as_routes()
+        test_2 = Test.as_routes(channel_name='test')
         client = HttpClient()
 
         with apply_routes([test]):
@@ -37,8 +30,9 @@ class MainTest(TestCase):
 
         with apply_routes([test_2]):
             client.send_and_consume(u'websocket.receive')
+        channel_layer = channel_layers[DEFAULT_CHANNEL_LAYER]
 
-        self.assertEqual(len(channel_layer._channels), 2, channel_layer._channels.keys())
+        self.assertEqual(len(channel_layer._channels), 3, channel_layer._channels.keys())
         self.assertIn('test', channel_layer._channels.keys())
 
     def test_as_routes(self):
@@ -57,8 +51,8 @@ class MainTest(TestCase):
             def on_connect(this, message):
                 return 'connect'
 
-        channel_layer = ImMemoryChannelLayer()
-        routes = Test.as_routes(channel_name='test', path='^new$', _channel_layer=channel_layer)
+        channel_layer = channel_layers[DEFAULT_CHANNEL_LAYER]
+        routes = Test.as_routes(channel_name='test', path='^new$')
         self.assertTrue(isinstance(routes, include))
         self.assertEqual(routes.channel_names(), {'websocket.receive', 'websocket.connect',
                                                   'test', 'websocket.disconnect'})
@@ -80,12 +74,12 @@ class MainTest(TestCase):
             def on_connect(this, message):
                 return 'connect'
 
-        channel_layer = ImMemoryChannelLayer()
-        routes = Test.as_routes(_channel_layer=channel_layer)
+        routes = Test.as_routes()
         self.assertTrue(isinstance(routes, include))
         self.assertEqual(routes.channel_names(), {'websocket.receive', 'websocket.connect', 'websocket.disconnect'})
         self.assertEqual(len(routes.routing), 3)
 
+        channel_layer = channel_layers[DEFAULT_CHANNEL_LAYER]
         self.assertEqual(routes.match(Message({'new': ''}, 'websocket.receive', channel_layer)), None)
         m = Message({'path': 'new'}, 'websocket.connect', channel_layer)
         self.assertEqual(routes.match(m)[0](m), 'connect')
@@ -116,24 +110,21 @@ class MainTest(TestCase):
             decorators = [decor, ]
             slug = 'slug'
 
-            @apply_decorator(decor2)
             def on_connect(this, message, slug=None):
                 this.slug = slug
                 return message
 
-            @consumer(tag='(?P<tag>[^/]+)')
-            @apply_decorator(decor2)
+            @consumer(tag='(?P<tag>[^/]+)', decorators=[decor2])
             def tags(this, message, tag):
                 return this.message, this.kwargs, this.slug
 
-        channel_layer = ImMemoryChannelLayer()
-        routes = Test.as_routes(channel_layer=channel_layer)
 
+        routes = Test.as_routes()
+        channel_layer = channel_layers[DEFAULT_CHANNEL_LAYER]
         message = Message({'path': '/new'}, 'websocket.connect', channel_layer)
         _consumer, kwargs = routes.match(message)
         self.assertEqual(kwargs, {'slug': 'new'})
         self.assertEqual(_consumer.__name__, 'ws_connect')
-        self.assertTrue(_consumer(message, **kwargs).decor2)
         self.assertTrue(_consumer(message, **kwargs).decor)
 
         message = Message({'path': '/new', 'tag': 'test'}, 'test', channel_layer)
@@ -143,41 +134,6 @@ class MainTest(TestCase):
         self.assertTrue(_consumer(message, **kwargs)[0].decor2)
         self.assertEqual(_consumer(message, **kwargs)[1], {'tag': 'test'})
         self.assertEqual(_consumer(message, **kwargs)[2], 'slug')
-
-    def test_super_problem(self):
-        def decor(_consumer):
-            @wraps(_consumer)
-            def _wrap(message, *args, **kwargs):
-                message.test_mark = '1'
-                message.test_mark_decor = '1'
-                return _consumer(message, *args, **kwargs)
-
-            return _wrap
-
-        class A(Consumers):
-
-            @apply_decorator(decor)
-            def on_connect(this, message, **kwargs):
-                this.test_mark = '2'
-                this.test_mark_a = '2'
-
-        class B(A):
-            def on_connect(this, message, **kwargs):
-                super(B, this).on_connect(message, **kwargs)
-                this.test_mark = '3'
-                this.test_mark_b = '3'
-                return this
-
-        channel_layer = ImMemoryChannelLayer()
-
-        routes = B.as_routes(channel_layer=channel_layer)
-        message = Message({'path': '/new'}, 'websocket.connect', channel_layer)
-        _consumer, kwargs = routes.match(message)
-        res = _consumer(message, **kwargs)
-        self.assertTrue(res.test_mark, '3')
-        self.assertTrue(res.message.test_mark_decor, '1')
-        self.assertTrue(res.test_mark_a, '2')
-        self.assertTrue(res.test_mark_b, '3')
 
     def test_passing_kwargs_and_reply_channel(self):
 
@@ -198,3 +154,37 @@ class MainTest(TestCase):
             content = client.receive()
 
             self.assertDictEqual(content, {'test': 'tag', 'slug': 'name', 'kwargs': 'name'})
+
+    def test_filters_and_routing(self):
+        class Test(Consumers):
+            channel_name = 'test'
+            mark = 'default'
+
+            @consumer(tag='test')
+            def test(this, message):
+                this.reply_channel.send({'status': 'ok'})
+
+            @consumer('test2', tag='test')
+            def test2(this, message):
+                this.reply_channel.send({'status': 'ok', 'mark': this.mark})
+
+        with apply_routes([Test.as_routes(), Test.as_routes(channel_name='test3', mark='new')]):
+            client = HttpClient()
+            self.assertIsNone(client.send_and_consume(u'test', content={'tag': 'tag'}, fail_on_none=False))
+
+            client.send_and_consume(u'test', content={'tag': 'test'})
+
+            self.assertDictEqual(client.receive(), {'status': 'ok'})
+            client.consume('test', fail_on_none=False)
+            self.assertIsNone(client.receive())
+
+            client.send_and_consume(u'test3', content={'tag': 'test'})
+
+            self.assertDictEqual(client.receive(), {'status': 'ok'})
+            client.consume('test3', fail_on_none=False)
+            self.assertIsNone(client.receive())
+
+            client.send_and_consume(u'test2', content={'tag': 'test'})
+            self.assertDictEqual(client.receive(), {'status': 'ok', 'mark': 'default'})
+            client.consume('test2', fail_on_none=False)
+            self.assertIsNone(client.receive())

@@ -142,7 +142,6 @@ class MultipleObjectMixin(object):
     context_object_name = None
     paginator_class = Paginator
     page_kwarg = 'page'
-    ordering = None
 
     def get_queryset(self):
         return self.queryset or self.model._default_manager.all()
@@ -150,7 +149,7 @@ class MultipleObjectMixin(object):
     def paginate_queryset(self):
         queryset = self.get_queryset()
         paginator = self.paginator_class(queryset, self.paginate_by, self.paginate_orphans)
-        page = self.kwargs.get(self.page_kwarg)
+        page = self.message.content.get(self.page_kwarg, 1)
         try:
             page_number = int(page)
         except ValueError:
@@ -214,8 +213,7 @@ class ModelSubscribeConsumers(NoReceiveMixin, SingleObjectMixin, GroupMixin, Web
         if _model_data:
             data = {"created" if created else "updated": _model_data}
 
-            Group(cls.get_group_name_for_model(sender, _uid), alias=cls._channel_alias,
-                  channel_layer=cls._channel_layer).send(data)
+            Group(cls.get_group_name_for_model(sender, _uid)).send(data)
 
     def on_connect(self, message, **kwargs):
         super(ModelSubscribeConsumers, self).on_connect(message, **kwargs)
@@ -232,7 +230,7 @@ class CreateMixin(object):
     Using with SerializerMixin and SingleObjectMixin
     """
 
-    @consumer(action='create', data='.+')
+    @consumer(action='create')
     def create(self, message):
         serializer = self.get_serializer(data=message.content['data'])
         if serializer.is_valid():
@@ -257,7 +255,7 @@ class UpdateMixin(object):
     Using with SerializerMixin and SingleObjectMixin
     """
 
-    @consumer(action='update', data='.+')
+    @consumer(action='update')
     def update(self, message):
         serializer = self.get_serializer(instance=self.instance, data=message.content['data'])
         if serializer.is_valid():
@@ -280,11 +278,39 @@ class DeleteMixin(object):
         self.reply_channel.send({'response': 'ok'})
 
 
-class CRUDConsumers(CreateMixin, GetMixin, UpdateMixin, DeleteMixin,
-                    SerializerMixin, SingleObjectMixin, WebsocketConsumers):
+class ListMixin(object):
+
+    @consumer(action='list')
+    def list(self, message):
+        paginator, page, object_list, has_other_pages = self.paginate_queryset()
+        self.reply_channel.send({'response': self.get_serializer(instance=object_list, many=True).data})
+
+
+class CRUDConsumers(CreateMixin, GetMixin, UpdateMixin, DeleteMixin, ListMixin, SerializerMixin,
+                    SingleObjectMixin, MultipleObjectMixin, WebsocketConsumers):
     """
-    Consumers collection - Provides base methods for object manipulations Create, Read, Update and Delete
+    Consumers collection - Provides base methods for object manipulations Create, Read, List, Update and Delete
     """
+
+    @classmethod
+    def _get_path(cls, **kwargs):
+        return kwargs.get('path', cls.path) + '(?P<{0}>.+)'.format(kwargs.get('slug_path_kwarg', cls.slug_path_kwarg))
+
+    @classmethod
+    def _get_path_many(cls, **kwargs):
+        return kwargs.get('path', cls.path)
+
+    @consumer('websocket.connect', path=_get_path_many)
+    def ws_connect_many(self, message, **kwargs):
+        return self.on_connect(message, **kwargs)
+
+    @consumer('websocket.disconnect', path=_get_path_many)
+    def ws_disconnect_many(self, message, **kwargs):
+        return self.on_disconnect(message, **kwargs)
+
+    @consumer('websocket.receive', path=_get_path_many)
+    def ws_receive_many(self, message, **kwargs):
+        return self.on_receive(message, **kwargs)
 
 
 class ReadOnlyConsumers(GetMixin, SerializerMixin, SingleObjectMixin, WebsocketConsumers):
@@ -300,4 +326,8 @@ class DeleteConsumers(DeleteMixin, SerializerMixin, SingleObjectMixin, Websocket
 
 
 class UpdateConsumers(UpdateMixin, SerializerMixin, SingleObjectMixin, WebsocketConsumers):
+    pass
+
+
+class ListConsumers(ListMixin, SerializerMixin, MultipleObjectMixin, WebsocketConsumers):
     pass

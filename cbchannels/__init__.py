@@ -1,4 +1,4 @@
-from .base import Consumers, WebsocketConsumers, consumer, apply_decorator  # NOQA
+from .base import Consumers, WebsocketConsumers, consumer  # NOQA
 
 __version__ = '0.1.5'
 

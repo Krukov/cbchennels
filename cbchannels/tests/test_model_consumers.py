@@ -1,17 +1,11 @@
 
 import json
-from channels.tests import ChannelTestCase
-
-try:
-    from channels.tests import HttpClient, apply_routes
-except ImportError:
-    # remove it soon
-    from .features import apply_routes, HttpClient
+from channels.tests import ChannelTestCase, HttpClient, apply_routes
 
 from django.contrib.auth.models import User
 
 from cbchannels.generic.models import (ObjectSubscribeConsumers, ModelSubscribeConsumers, ReadOnlyConsumers,
-                                       CreateConsumers, DeleteConsumers, UpdateConsumers)
+                                       CreateConsumers, DeleteConsumers, UpdateConsumers, ListConsumers, CRUDConsumers)
 from cbchannels.generic.serializers import SimpleSerializer
 
 
@@ -223,8 +217,7 @@ class ModelsTestCase(ChannelTestCase):
         self.assertTrue(user)
         self.assertEqual(user.username, 'new_name')
 
-
-def test_delete_mixin(self):
+    def test_delete_mixin(self):
         # create object
         obj = User.objects.create_user(username='test', email='t@t.tt')
         # create client
@@ -236,3 +229,57 @@ def test_delete_mixin(self):
             client.consume('test')
 
         self.assertFalse(User.objects.filter(pk=obj.pk).exists())
+
+    def test_list_consumers(self):
+        # create object
+        for i in range(20):
+            User.objects.create_user(username='test' + str(i), email='t@t.tt')
+        # create client
+        client = HttpClient()
+
+        with apply_routes([ListConsumers.as_routes(model=User, path='/', channel_name='test', paginate_by=10)]):
+            client.send_and_consume(u'websocket.connect', {'path': '/'})
+            client.send_and_consume(u'websocket.receive', {'path': '/', 'action': 'list', 'page': 2})
+            client.consume('test')
+            rec = client.receive()
+            res = json.loads(rec['response'])
+
+        self.assertEqual(len(res), 10)
+        self.assertEqual(res[0]['username'], 'test10')
+        self.assertEqual(res[0]['email'], 't@t.tt')
+        self.assertEqual(res[0]['is_active'], True)
+
+    def test_crud_consumers(self):
+        # create object
+        for i in range(20):
+            User.objects.create_user(username='test' + str(i), email='t@t.tt')
+        # create client
+        client = HttpClient()
+
+        with apply_routes([CRUDConsumers.as_routes(model=User, path='/', channel_name='test', paginate_by=10)]):
+            client.send_and_consume(u'websocket.connect', {'path': '/'})
+            client.send_and_consume(u'websocket.receive', {'path': '/', 'action': 'list', 'page': 2})
+            client.consume('test')
+            rec = client.receive()
+            res = json.loads(rec['response'])
+
+            self.assertEqual(len(res), 10)
+            self.assertEqual(res[0]['username'], 'test10')
+            self.assertEqual(res[0]['email'], 't@t.tt')
+            self.assertEqual(res[0]['is_active'], True)
+
+            client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(10)})
+            client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(10), 'action': 'delete'})
+            client.consume('test')
+
+            self.assertFalse(User.objects.filter(pk=10).exists())
+
+            data = {'username': 'new_name'}
+            client.send_and_consume('websocket.connect', {'path': '/{}'.format(11)})
+            client.send_and_consume('websocket.receive', {'path': '/{}'.format(11), 'action': 'update',
+                                                          'data': json.dumps(data)})
+            client.consume('test')
+
+            user = User.objects.filter(pk=11).first()
+            self.assertTrue(user)
+            self.assertEqual(user.username, 'new_name')

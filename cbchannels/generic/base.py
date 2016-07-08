@@ -34,15 +34,15 @@ class GroupConsumers(GroupMixin, WebsocketConsumers):
         """
 
     def on_connect(self, message, **kwargs):
-        super(GroupMixin, self).on_connect(message, **kwargs)
+        super(GroupConsumers, self).on_connect(message, **kwargs)
         self.get_group().add(self.reply_channel)
 
     def on_disconnect(self, message, **kwargs):
-        super(GroupMixin, self).on_disconnect(message, **kwargs)
+        super(GroupConsumers, self).on_disconnect(message, **kwargs)
         self.get_group().discard(self.reply_channel)
 
     def on_receive(self, message, **kwargs):
-        super(GroupMixin, self).on_receive(message, **kwargs)
+        super(GroupConsumers, self).on_receive(message, **kwargs)
         self.broadcast(message.content)
 
 
@@ -52,8 +52,8 @@ class SessionMixin(object):
     """
 
     @classmethod
-    def get_decorators(cls):
-        decorators = super(SessionMixin, cls).get_decorators()
+    def get_decorators(cls, **kwargs):
+        decorators = super(SessionMixin, cls).get_decorators(**kwargs)
         decorators.append(http_session)
         decorators.append(channel_session)
         return decorators
@@ -81,12 +81,34 @@ class PermissionMixin(object):
             super(PermissionMixin, self).on_receive(*args, **kwargs)
 
 
-class RoomMixin(SessionMixin):
-    channel_name = '_room'
+class RoomConsumers(SessionMixin, WebsocketConsumers):
+    auth = False
+
+    @property
+    def user(self):
+        if self.auth:
+            return self.message.user
+
+    @classmethod
+    def get_decorators(cls, **kwargs):
+        if cls.auth or kwargs.get('auth', False):
+            from channels.auth import channel_session_user
+            decorators = super(RoomConsumers, cls).get_decorators(**kwargs)
+            decorators.append(channel_session_user)
+            return decorators
+
+    def on_connect(self, *args, **kwargs):
+        if self.auth:
+            from channels.auth import channel_session_user_from_http
+            return channel_session_user_from_http(super(RoomConsumers, self).on_connect)(*args, **kwargs)
+
+    def on_receive(self, *args, **kwargs):
+        if self.auth and self.user:
+            super(RoomConsumers, self).on_receive(*args, **kwargs)
 
     @property
     def room(self):
-        return self.message.get('room')
+        return self.message.get('room') + self.message.content['path']
 
     @consumer(command="^join$")
     def join(self, message):
@@ -99,7 +121,10 @@ class RoomMixin(SessionMixin):
     @consumer(command="^send$")
     def send(self, message):
         if self.room in self.session:
-            self.room_group.send(message['text'])
+            self.room_group.send(self.get_room_message())
+
+    def get_room_message(self):
+        return {'text': self.message.content['text'], 'room': self.room, }
 
     @property
     def room_group(self):

@@ -1,12 +1,6 @@
 
 from channels import asgi, DEFAULT_CHANNEL_LAYER
-from channels.tests import ChannelTestCase
-
-try:
-    from channels.tests import HttpClient, apply_routes
-except ImportError:
-    # remove it soon
-    from .features import apply_routes, HttpClient
+from channels.tests import ChannelTestCase, HttpClient, apply_routes
 
 from django.contrib.auth.models import AnonymousUser, User
 
