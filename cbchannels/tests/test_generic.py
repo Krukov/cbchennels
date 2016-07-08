@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 
 from channels import asgi, DEFAULT_CHANNEL_LAYER
 from channels.tests import ChannelTestCase, HttpClient, apply_routes

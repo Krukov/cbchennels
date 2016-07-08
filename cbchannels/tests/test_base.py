@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 
 from functools import wraps
 
@@ -117,7 +118,6 @@ class MainTest(ChannelTestCase):
             @consumer(tag='(?P<tag>[^/]+)', decorators=[decor2])
             def tags(this, message, tag):
                 return this.message, this.kwargs, this.slug
-
 
         routes = Test.as_routes()
         channel_layer = channel_layers[DEFAULT_CHANNEL_LAYER]

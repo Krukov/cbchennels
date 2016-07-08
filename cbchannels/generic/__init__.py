@@ -1,2 +1,2 @@
-from .models import CRUDConsumers, ModelSubscribeConsumers, ObjectSubscribeConsumers
-from .base import GroupConsumers, RoomConsumers
+from .models import CRUDConsumers, ModelSubscribeConsumers, ObjectSubscribeConsumers  # NOQA
+from .base import GroupConsumers, RoomConsumers  # NOQA

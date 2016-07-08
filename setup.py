@@ -13,7 +13,7 @@ setup(
     author='Dmitry Krukov',
     author_email='glebov.ru@gmail.com',
     description='Class Based Consumers for channels',
-    long_description=open('README.rst').read(),
+    long_description=open('README.md').read(),
     keywords='',
     requires=[
         'six',

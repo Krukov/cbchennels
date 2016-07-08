@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 
 import json
 from channels.tests import ChannelTestCase, HttpClient, apply_routes
@@ -210,7 +211,7 @@ class ModelsTestCase(ChannelTestCase):
 
             client.send_and_consume('websocket.connect', {'path': '/{}'.format(obj.pk)})
             client.send_and_consume('websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'update',
-                                                           'data': json.dumps(data)})
+                                                          'data': json.dumps(data)})
             client.consume('test')
 
         user = User.objects.filter(pk=obj.pk).first()

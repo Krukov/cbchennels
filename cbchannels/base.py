@@ -8,9 +8,9 @@ from functools import wraps
 import six
 
 try:
-    from django.channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
+    from django.channels import include, route, Channel
 except ImportError:
-    from channels import include, route, Channel, DEFAULT_CHANNEL_LAYER
+    from channels import include, route, Channel
 
 from .exceptions import ConsumerError
 
