@@ -95,7 +95,10 @@ class Consumers(object):
         """
         Return filter value for given consumer and key
         """
-        value = consumer._consumer['filter'][key]
+        return cls._get_callable_value(consumer._consumer['filter'][key], **kwargs)
+
+    @classmethod
+    def _get_callable_value(cls, value, **kwargs):
         if callable(value):
             return value(cls, **kwargs)
         if isinstance(value, classmethod):
@@ -103,6 +106,11 @@ class Consumers(object):
         if isinstance(value, staticmethod):
             return value.__func__(**kwargs)
         return value
+
+    @classmethod
+    def _get_channel_name_for_consumer(cls, consumer, **kwargs):
+        value = consumer._consumer.get('channel_name', None)
+        return cls._get_callable_value(value, **kwargs) or kwargs.get('channel_name') or cls._get_channel_name(**kwargs)
 
     def at_exception(self, e):
         if isinstance(e, ConsumerError):
@@ -120,8 +128,7 @@ class Consumers(object):
         """
         _routes = []
         for _consumer in cls._get_consumers():
-            name = (_consumer._consumer.get('channel_name', None) or
-                    kwargs.get('channel_name') or cls._get_channel_name(**kwargs))
+            name = cls._get_channel_name_for_consumer(_consumer, **kwargs)
             if callable(name):
                 name = name(cls, **kwargs)
             filters = {key: cls._get_filter_value(_consumer, key, **kwargs) for key
