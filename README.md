@@ -218,17 +218,6 @@ routes = [
 ```
 
 
-RoomConsumers
--------------
-inherit `WebsocketConsumers`
-For simple chat based on session use RoomConsumers:
-
-```python
-routes = [
-    RoomConsumers(channel_name='rooms', path='/', auth=True)
-]
-```
-
 Model Generic
 =============
 
