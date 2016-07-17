@@ -22,7 +22,7 @@ class TestGeneric(ChannelTestCase):
         with apply_routes([_GroupConsumers.as_routes()]):
             self.client.send_and_consume(u'websocket.connect', {'path': '/test', 'reply_channel': 'test.reply_channel'})
             self.client.send_and_consume(u'websocket.receive',
-                                         {'message': 'test', 'path': '/test', 'reply_channel': 'test.reply_channel'})
+                                         {'text': 'test', 'path': '/test', 'reply_channel': 'test.reply_channel'})
 
         channel_layer = asgi.channel_layers[DEFAULT_CHANNEL_LAYER]
         self.assertTrue('test' in channel_layer._groups.keys())
@@ -38,7 +38,7 @@ class TestGeneric(ChannelTestCase):
             self.client.send_and_consume(u'websocket.connect',
                                          {'path': '/test/123', 'reply_channel': 'test.reply_channel'})
             self.client.send_and_consume(u'websocket.receive',
-                                         {'message': 'test', 'path': '/test/123', 'reply_channel': 'test.reply_channel'})
+                                         {'text': 'test', 'path': '/test/123', 'reply_channel': 'test.reply_channel'})
 
         channel_layer = asgi.channel_layers[DEFAULT_CHANNEL_LAYER]
         self.assertTrue('test_123' in channel_layer._groups.keys())

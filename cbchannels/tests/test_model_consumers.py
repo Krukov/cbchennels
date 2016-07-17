@@ -42,10 +42,11 @@ class ModelsTestCase(ChannelTestCase):
             sub_object.username = 'sub_object'
             sub_object.email = 'new@email.com'
             sub_object.save()
-            res = json.loads(client.receive()['updated'])
-            self.assertEqual(res['username'], 'sub_object')
-            self.assertEqual(res['email'], 'new@email.com')
-            self.assertEqual(res['is_staff'], False)
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'updated')
+            self.assertEqual(res['data']['username'], 'sub_object')
+            self.assertEqual(res['data']['email'], 'new@email.com')
+            self.assertEqual(res['data']['is_staff'], False)
 
             # change second object
             just_object.email = 'test@new.mail'
@@ -53,6 +54,15 @@ class ModelsTestCase(ChannelTestCase):
 
             # check that nothing happened
             self.assertIsNone(client.receive())
+
+            # delete
+            sub_object.delete()
+            just_object.delete()
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'deleted')
+            self.assertEqual(res['data']['username'], 'sub_object')
+            self.assertEqual(res['data']['email'], 'new@email.com')
+            self.assertEqual(res['data']['is_staff'], False)
 
     def test_object_sub_with_fields(self):
         # create object for subscribe
@@ -73,7 +83,7 @@ class ModelsTestCase(ChannelTestCase):
             sub_object.email = 'new@email.com'
             sub_object.save()
 
-            res = json.loads(client.receive()['updated'])
+            res = json.loads(client.receive()['text'])['data']
             self.assertEqual(res['username'], 'sub_object')
             self.assertEqual(res['is_active'], True)
             self.assertNotIn('email', res)
@@ -83,20 +93,22 @@ class ModelsTestCase(ChannelTestCase):
             sub_object.is_active = False
             sub_object.save()
 
-            res = json.loads(client.receive()['updated'])
-            self.assertNotIn('email', res)
-            self.assertNotIn('is_staff', res)
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'updated')
+            self.assertNotIn('email', res['data'])
+            self.assertNotIn('is_staff', res['data'])
 
-            self.assertEqual(res['username'], 'test')
-            self.assertEqual(res['is_active'], False)
+            self.assertEqual(res['data']['username'], 'test')
+            self.assertEqual(res['data']['is_active'], False)
 
             sub_object.username = 'test_new'
             sub_object.save(update_fields=['username'])
 
-            res = json.loads(client.receive()['updated'])
-            self.assertEqual(res['username'], 'test_new')
-            self.assertNotIn('is_active', res)
-            self.assertNotIn('is_staff', res)
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'updated')
+            self.assertEqual(res['data']['username'], 'test_new')
+            self.assertNotIn('is_active', res['data'])
+            self.assertNotIn('is_staff', res['data'])
 
             sub_object.email = 'new@email.com'
             sub_object.save(update_fields=['email'])
@@ -115,11 +127,15 @@ class ModelsTestCase(ChannelTestCase):
 
             # create object
             User.objects.create_user(username='test', email='t@t.tt')
-            res = json.loads(client.receive()['created'])
-            self.assertEqual(res['username'], 'test')
-            self.assertEqual(res['is_active'], True)
-            self.assertEqual(res['email'], 't@t.tt')
-            self.assertEqual(res['is_staff'], False)
+            res = json.loads(client.receive()['text'])
+            self.assertTrue('data' in res.keys())
+            self.assertTrue('action' in res.keys())
+            self.assertTrue(res['action'] == 'created')
+            data = res['data']
+            self.assertEqual(data['username'], 'test')
+            self.assertEqual(data['is_active'], True)
+            self.assertEqual(data['email'], 't@t.tt')
+            self.assertEqual(data['is_staff'], False)
 
             # check that nothing happened
             self.assertIsNone(client.receive())
@@ -141,15 +157,24 @@ class ModelsTestCase(ChannelTestCase):
             user.username = 'new username'
             user.save()
 
-            res = json.loads(client.receive()['updated'])
-            self.assertEqual(res['username'], 'new username')
-            self.assertEqual(res['email'], 't@t.tt')
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'updated')
+            self.assertEqual(res['data']['username'], 'new username')
+            self.assertEqual(res['data']['email'], 't@t.tt')
 
             # create new one
-            User.objects.create_user(username='test2', email='t2@t.tt')
-            res = json.loads(client.receive()['created'])
-            self.assertEqual(res['username'], 'test2')
-            self.assertEqual(res['email'], 't2@t.tt')
+            to_del = User.objects.create_user(username='test2', email='t2@t.tt')
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'created')
+            self.assertEqual(res['data']['username'], 'test2')
+            self.assertEqual(res['data']['email'], 't2@t.tt')
+
+            # delete
+            to_del.delete()
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'deleted')
+            self.assertEqual(res['data']['username'], 'test2')
+            self.assertEqual(res['data']['email'], 't2@t.tt')
 
     def test_model_sub_with_fields(self):
         # define consumers
@@ -165,10 +190,11 @@ class ModelsTestCase(ChannelTestCase):
             # create object
             User.objects.create_user(username='test', email='t@t.tt')
 
-            res = json.loads(client.receive()['created'])
-            self.assertEqual(res['username'], 'test')
-            self.assertNotIn('is_active', res)
-            self.assertNotIn('email', res)
+            res = json.loads(client.receive()['text'])
+            self.assertEqual(res['action'], 'created')
+            self.assertEqual(res['data']['username'], 'test')
+            self.assertNotIn('is_active', res['data'])
+            self.assertNotIn('email', res['data'])
 
     def test_get_mixin(self):
         # create object
@@ -181,7 +207,7 @@ class ModelsTestCase(ChannelTestCase):
             client.send_and_consume(u'websocket.connect', {'path': '/{}'.format(obj.pk)})
             client.send_and_consume(u'websocket.receive', {'path': '/{}'.format(obj.pk), 'action': 'get'})
             client.consume('test')
-            res = json.loads(client.receive()['response'])
+            res = json.loads(json.loads(client.receive()['text'])['response'])
 
             self.assertEqual(res['username'], 'test')
             self.assertEqual(res['email'], 't@t.tt')
@@ -243,7 +269,7 @@ class ModelsTestCase(ChannelTestCase):
             client.send_and_consume(u'websocket.receive', {'path': '/', 'action': 'list', 'page': 2})
             client.consume('test')
             rec = client.receive()
-            res = json.loads(rec['response'])
+            res = json.loads(json.loads(rec['text'])['response'])
 
         self.assertEqual(len(res), 10)
         self.assertEqual(res[0]['username'], 'test10')
@@ -262,7 +288,7 @@ class ModelsTestCase(ChannelTestCase):
             client.send_and_consume(u'websocket.receive', {'path': '/', 'action': 'list', 'page': 2})
             client.consume('test')
             rec = client.receive()
-            res = json.loads(rec['response'])
+            res = json.loads(json.loads(rec['text'])['response'])
 
             self.assertEqual(len(res), 10)
             self.assertEqual(res[0]['username'], 'test10')
