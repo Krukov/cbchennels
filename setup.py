@@ -5,7 +5,7 @@ from setuptools import setup
 setup(
     name='cbchannels',
     version=get_version(),
-    packages=['cbchannels'],
+    packages=['cbchannels', 'cbchannels.generic'],
     url='https://github.com/Krukov/cbchannels',
     download_url='https://github.com/Krukov/cbchannels/'
                  'tarball/' + get_version(),
