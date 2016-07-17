@@ -26,3 +26,7 @@ class UserMixin(object):
     @property
     def user(self):
         return self.message.user
+
+    @property
+    def session(self):
+        return self.message.channel_session
