@@ -1,4 +1,4 @@
-
+import json
 try:
     from django.channels import Group
     from django.channels.sessions import channel_session, http_session
@@ -19,7 +19,7 @@ class GroupMixin(object):
         return Group(self.get_group_name(**self.kwargs))
 
     def broadcast(self, content):
-        self.get_group().send(content)
+        self.get_group().send({'text': json.dumps(content)})
 
 
 class GroupConsumers(GroupMixin, WebsocketConsumers):
@@ -43,7 +43,7 @@ class GroupConsumers(GroupMixin, WebsocketConsumers):
 
     def on_receive(self, message, **kwargs):
         super(GroupConsumers, self).on_receive(message, **kwargs)
-        self.broadcast(message.content)
+        self.broadcast(message.content['text'])
 
 
 class SessionMixin(object):
